@@ -1,5 +1,4 @@
 import logging
-import sys
 
 from objects import Board, STARTING_POSITION, Player
 
@@ -16,10 +15,12 @@ if __name__ == "__main__":
         while True:
             wmove = white.get_move()
             out.write("%d. %s " % (board.move_num, board.make_move(wmove)))
+            out.flush()
             if not board.is_playable():
                 break
 
             bmove = black.get_move()
             out.write("%s " % board.make_move(bmove))
+            out.flush()
             if not board.is_playable():
                 break

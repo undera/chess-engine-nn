@@ -3,6 +3,7 @@
 
 import logging
 
+import chess
 import numpy as np
 
 from nn import NN
@@ -10,6 +11,14 @@ from nn import NN
 STARTING_POSITION = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
 PIECE_MAP = "PpNnBbRrQqKk"
 COLS = "abcdefgh"
+
+
+def move_to_label(move):
+    score, src, dst = move
+    label = "%s%s%d%s%d" % (PIECE_MAP[src[3]].upper(), COLS[src[2]], src[1] + 1, COLS[dst[2]], dst[1] + 1)
+    if label.startswith("P"):
+        label = label[1:]
+    return label
 
 
 class Board(object):
@@ -22,28 +31,30 @@ class Board(object):
         self.castling_flags = "KQkq"
         self.moves = []
         self.starting_fen = None
+        self.validator = chess.Board()  # to make sure we don't screw up
 
     def is_playable(self):
         return len(self.moves) < 1000
 
     def make_move(self, move):
-        # TODO: check who's move it is
-        # TODO: tick active_index and move_num
         # TODO: check 3-fold and 50-move
         if not move:
             raise ValueError("No valid moves")
 
         score, src, dst = move
 
-        label = "%s%s%d%s%d" % (PIECE_MAP[src[3]].upper(), COLS[src[2]], src[1] + 1, COLS[dst[2]], dst[1] + 1)
+        label = move_to_label(move)
 
         logging.info("New move: %s", label)
+        assert self.piece_at(src[1], src[2]) % 2 == self.active_index
 
+        self.validator.push_san(label)
+        piece_onehot = self.piece_placement[src[1]][src[2]]
         self.piece_placement[src[1]][src[2]] = 0
         captured = self.piece_at(dst[1], dst[2])
         if captured and PIECE_MAP[captured].upper() == 'K':
             raise ValueError("Checkmate")
-        self.piece_placement[dst[1]][dst[2]] = src[3]
+        self.piece_placement[dst[1]][dst[2]] = piece_onehot
 
         self.moves.append(label)
 
@@ -61,6 +72,7 @@ class Board(object):
         return piece_idx[0] if piece_idx.size else None
 
     def from_fen(self, fen):
+        self.validator = chess.Board(fen=fen)
         self.starting_fen = fen
         placement, active_colour, self.castling_flags, enpassant, halfmove, fullmove = fen.split(' ')
         self._50move_counter = int(halfmove)
@@ -111,7 +123,17 @@ class Player(object):
             piece_class = PIECE_MAP[ffrom[3]].upper()
             for tto in rev_to:
                 if self._is_valid_move(piece_class, ffrom, tto):
-                    possible_moves.append((ffrom[0] * tto[0], ffrom, tto))
+                    move = (ffrom[0] * tto[0], ffrom, tto)
+                    label = move_to_label(move)
+                    try:
+                        self.board.validator.push_san(label)
+                        self.board.validator.pop()
+                    except:
+                        logging.warning("Problematic move: %s", label)
+                        self._is_valid_move(piece_class, ffrom, tto)
+                        raise
+
+                    possible_moves.append(move)
 
         possible_moves.sort(key=lambda x: x[0], reverse=True)
         # check for exposing king to check
@@ -120,6 +142,8 @@ class Player(object):
     def _is_valid_move(self, piece_class, src, dest):
         _, src_r, src_c, src_p = src
         _, dst_r, dst_c, dst_p = dest
+        label = move_to_label([0, src, dest])
+
         if piece_class == 'P':
             direction = -1 if self.piece_index else 1
 

@@ -3,14 +3,13 @@
 
 import logging
 
-import keras
 import numpy as np
-from keras import Input
-from keras.layers import Dense
-from keras.utils import plot_model
+
+from nn import NN
 
 STARTING_POSITION = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
 PIECE_MAP = "PpNnBbRrQqKk"
+COLS = "abcdefgh"
 
 
 class Board(object):
@@ -25,14 +24,38 @@ class Board(object):
         self.starting_fen = None
 
     def is_playable(self):
-        return True
+        return len(self.moves) < 1000
 
     def make_move(self, move):
-        # check who's move it is
-        # tick active_index and move_num
-        logging.info("New move: %s", move)
+        # TODO: check who's move it is
+        # TODO: tick active_index and move_num
+        # TODO: check 3-fold and 50-move
+        if not move:
+            raise ValueError("No valid moves")
+
+        score, src, dst = move
+
+        logging.info("New move: %s%s%d%s%d", PIECE_MAP[src[3]].upper(),
+                     COLS[src[2]], src[1] + 1, COLS[dst[2]], dst[1] + 1)
+
         self.moves.append(move)
-        # check 3-fold and 50-move
+
+        self.piece_placement[src[1]][src[2]] = 0
+        captured = self.piece_at(dst[1], dst[2])
+        if captured and PIECE_MAP[captured].upper() == 'K':
+            raise ValueError("Checkmate")
+        self.piece_placement[dst[1]][dst[2]] = src[3]
+
+        if self.active_index:
+            self.move_num += 1
+            self.active_index = 0
+        else:
+            self.active_index = 1
+
+    def piece_at(self, rank, col):
+        cell = self.piece_placement[rank][col]
+        piece_idx = np.flatnonzero(cell)
+        return piece_idx[0] if piece_idx.size else None
 
     def from_fen(self, fen):
         self.starting_fen = fen
@@ -55,37 +78,6 @@ class Board(object):
 
             assert coln == 8
         assert rankn == 0
-
-
-class NN(object):
-    def __init__(self) -> None:
-        super().__init__()
-        self._model = self._get_nn()
-        self._model.summary(print_fn=logging.warning)
-
-    def _get_nn(self):
-        positions = Input(shape=(8 * 8 * len(PIECE_MAP),))
-        hidden = Dense(64, activation="sigmoid")(positions)
-        hidden = Dense(64, activation="sigmoid")(hidden)
-        out_from = Dense(64, activation="tanh")(hidden)
-        out_to = Dense(64, activation="tanh")(hidden)
-
-        model = keras.Model(inputs=[positions], outputs=[out_from, out_to])
-        model.compile(optimizer='nadam',
-                      loss='categorical_crossentropy',
-                      metrics=['categorical_accuracy'])
-        plot_model(model, to_file='model.png', show_shapes=True)
-        return model
-
-    def query(self, brd):
-        data = brd.piece_placement.flatten()[np.newaxis, ...]
-        res = self._model.predict_on_batch(data)
-
-        frm1 = res[0][0]
-        frm2 = np.reshape(frm1, (-1, 8))
-        tto1 = res[1][0]
-        tto2 = np.reshape(tto1, (-1, 8))
-        return frm2, tto2
 
 
 class Player(object):
@@ -133,7 +125,7 @@ class Player(object):
                     # regular move
                     return True
                 elif src_r + direction * 2 == dst_r and dst_p is None \
-                        and self._piece_at(src_r + direction, src_c) is None:
+                        and self.board.piece_at(src_r + direction, src_c) is None:
                     # first move
                     return True
             elif abs(src_c - dst_c) == 1 and src_r + direction == dst_r and dst_p is not None:
@@ -172,13 +164,7 @@ class Player(object):
         for rank in range(8):
             for col in range(8):
                 if not np.isnan(weights[rank][col]):
-                    idx.append((weights[rank][col], rank, col, self._piece_at(rank, col)))
+                    idx.append((weights[rank][col], rank, col, self.board.piece_at(rank, col)))
 
         # idx.sort(key=lambda x: x[0], reverse=True)
         return idx
-
-    def _piece_at(self, rank, col):
-        cell = self.board.piece_placement[rank][col]
-        piece_idx = np.flatnonzero(cell)
-        return piece_idx[0] if piece_idx.size else None
-

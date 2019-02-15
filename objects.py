@@ -35,10 +35,9 @@ class Board(object):
 
         score, src, dst = move
 
-        logging.info("New move: %s%s%d%s%d", PIECE_MAP[src[3]].upper(),
-                     COLS[src[2]], src[1] + 1, COLS[dst[2]], dst[1] + 1)
+        label = "%s%s%d%s%d" % (PIECE_MAP[src[3]].upper(), COLS[src[2]], src[1] + 1, COLS[dst[2]], dst[1] + 1)
 
-        self.moves.append(move)
+        logging.info("New move: %s", label)
 
         self.piece_placement[src[1]][src[2]] = 0
         captured = self.piece_at(dst[1], dst[2])
@@ -46,11 +45,15 @@ class Board(object):
             raise ValueError("Checkmate")
         self.piece_placement[dst[1]][dst[2]] = src[3]
 
+        self.moves.append(label)
+
         if self.active_index:
             self.move_num += 1
             self.active_index = 0
         else:
             self.active_index = 1
+
+        return label
 
     def piece_at(self, rank, col):
         cell = self.piece_placement[rank][col]
@@ -61,7 +64,7 @@ class Board(object):
         self.starting_fen = fen
         placement, active_colour, self.castling_flags, enpassant, halfmove, fullmove = fen.split(' ')
         self._50move_counter = int(halfmove)
-        self.move_num = fullmove
+        self.move_num = int(fullmove)
         self.active_index = 0 if active_colour == 'w' else 1
 
         rankn = 8

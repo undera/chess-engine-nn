@@ -103,12 +103,54 @@ class Player(object):
         self._filter_positions(weights_from, 1 if self.piece_index else 0)
         self._filter_positions(weights_to, 0 if self.piece_index else 1)
 
-        move = self._choose_move(weights_from, weights_to)
+        rev_from = self._reverse_index(weights_from)
+        rev_to = self._reverse_index(weights_to)
+
+        move = self._choose_move(rev_from, rev_to)
+        # TODO: check 3-fold here
         return move
 
-    def _choose_move(self, weights_from, weigts_to):
-        # check 3-fold here
-        return None
+    def _choose_move(self, rev_from, rev_to):
+        possible_moves = []
+        for ffrom in rev_from:
+            piece_class = PIECE_MAP[ffrom[3]].upper()
+            for tto in rev_to:
+                if self._is_valid_move(piece_class, ffrom, tto):
+                    possible_moves.append((ffrom[0] * tto[0], ffrom, tto))
+
+        possible_moves.sort(key=lambda x: x[0], reverse=True)
+        return possible_moves[0] if possible_moves else None
+
+    def _is_valid_move(self, piece_class, src, dest):
+        _, src_r, src_c, src_p = src
+        _, dst_r, dst_c, dst_p = dest
+        if piece_class == 'P':
+            direction = -1 if self.piece_index else 1
+
+            if src_c == dst_c:
+                if src_r + direction == dst_r and dst_p is None:
+                    # regular move
+                    return True
+                elif src_r + direction * 2 == dst_r and dst_p is None \
+                        and self._piece_at(src_r + direction, src_c) is None:
+                    # first move
+                    return True
+
+            # capture is special
+            # TODO: en passant
+        elif piece_class == 'N':
+            pass
+        elif piece_class == 'B':
+            pass
+        elif piece_class == 'R':
+            pass
+        elif piece_class == 'Q':
+            pass
+        elif piece_class == 'K':
+            pass
+        else:
+            raise ValueError()
+        return False
 
     def _filter_positions(self, weights, index):
         for rank in range(8):
@@ -120,6 +162,21 @@ class Player(object):
 
                 if not idx.size or idx[0] % 2 != index:
                     weights[rank][col] = None
+
+    def _reverse_index(self, weights):
+        idx = []
+        for rank in range(8):
+            for col in range(8):
+                if not np.isnan(weights[rank][col]):
+                    idx.append((weights[rank][col], rank, col, self._piece_at(rank, col)))
+
+        # idx.sort(key=lambda x: x[0], reverse=True)
+        return idx
+
+    def _piece_at(self, rank, col):
+        cell = self.board.piece_placement[rank][col]
+        piece_idx = np.flatnonzero(cell)
+        return piece_idx[0] if piece_idx.size else None
 
 
 if __name__ == "__main__":

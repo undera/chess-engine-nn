@@ -30,7 +30,7 @@ class Board(object):
     def make_move(self, move):
         # check who's move it is
         # tick active_index and move_num
-        logging.info("New Move")
+        logging.info("New move: %s", move)
         self.moves.append(move)
         # check 3-fold and 50-move
 
@@ -100,8 +100,8 @@ class Player(object):
 
     def get_move(self):
         weights_from, weights_to = self.nn.query(self.board)
-        self._filter_positions(weights_from, 1 if self.piece_index else 0)
-        self._filter_positions(weights_to, 0 if self.piece_index else 1)
+        self._filter_positions(weights_from, 1 if self.piece_index else 0, False)
+        self._filter_positions(weights_to, 0 if self.piece_index else 1, True)
 
         rev_from = self._reverse_index(weights_from)
         rev_to = self._reverse_index(weights_to)
@@ -119,6 +119,7 @@ class Player(object):
                     possible_moves.append((ffrom[0] * tto[0], ffrom, tto))
 
         possible_moves.sort(key=lambda x: x[0], reverse=True)
+        # check for exposing king to check
         return possible_moves[0] if possible_moves else None
 
     def _is_valid_move(self, piece_class, src, dest):
@@ -135,11 +136,14 @@ class Player(object):
                         and self._piece_at(src_r + direction, src_c) is None:
                     # first move
                     return True
-
-            # capture is special
+            elif abs(src_c - dst_c) == 1 and src_r + direction == dst_r and dst_p is not None:
+                # capture is special
+                return True
             # TODO: en passant
         elif piece_class == 'N':
-            pass
+            if (abs(src_r - dst_r) == 2 and abs(src_c - dst_c) == 1) or \
+                    (abs(src_r - dst_r) == 1 and abs(src_c - dst_c) == 2):
+                return True
         elif piece_class == 'B':
             pass
         elif piece_class == 'R':
@@ -152,12 +156,12 @@ class Player(object):
             raise ValueError()
         return False
 
-    def _filter_positions(self, weights, index):
+    def _filter_positions(self, weights, index, allow_empty):
         for rank in range(8):
             for col in range(8):
                 cell = self.board.piece_placement[rank][col]
                 idx = np.flatnonzero(cell)
-                if not idx.size and index:
+                if not idx.size and allow_empty:
                     continue
 
                 if not idx.size or idx[0] % 2 != index:
@@ -178,23 +182,3 @@ class Player(object):
         piece_idx = np.flatnonzero(cell)
         return piece_idx[0] if piece_idx.size else None
 
-
-if __name__ == "__main__":
-    logging.basicConfig(level=logging.DEBUG)
-
-    board = Board()
-    board.from_fen(STARTING_POSITION)
-
-    white = Player(board, 0)
-    black = Player(board, 1)
-
-    while True:
-        wmove = white.get_move()
-        board.make_move(wmove)
-        if not board.is_playable():
-            break
-
-        bmove = black.get_move()
-        board.make_move(bmove)
-        if not board.is_playable():
-            break

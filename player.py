@@ -57,7 +57,7 @@ class Player(object):
         elif result == '0-1':
             score = 1 if self.piece_index else -1
         else:
-            score = -0.1  # we play to win, not to draw
+            score = 1.0 / self.board.fullmove_number - 0.5  # we play to win, not to draw
 
         self.nn.learn(score, self._learning_data)
         self._learning_data.clear()

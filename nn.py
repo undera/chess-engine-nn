@@ -26,8 +26,9 @@ class NN(object):
         regulation = layers.Input(shape=(2,))  # 12 is len of PIECE_MAP
         inputs = concatenate([positions, regulation])
 
-        hidden = layers.Dense(64, activation="relu")(inputs)
-        hidden = layers.Dense(64, activation="relu")(hidden)
+        hidden = layers.Dense(64, activation="sigmoid")(inputs)
+        hidden = layers.Dense(64, activation="sigmoid")(hidden)
+        hidden = layers.Dense(64, activation="sigmoid")(hidden)
 
         out_from = layers.Dense(64, activation="tanh")(hidden)
         out_to = layers.Dense(64, activation="tanh")(hidden)
@@ -43,7 +44,7 @@ class NN(object):
         position = self.piece_placement_map(fen).flatten()[np.newaxis, ...]
         regulations = np.zeros((2,))[np.newaxis, ...]
         regulations[0][0] = fiftyturnscore
-        regulations[0][1] = fullmove
+        # regulations[0][1] = fullmove
         if fiftyturnscore > 0.5:
             pass
         res = self._model.predict_on_batch([position, regulations])
@@ -88,7 +89,7 @@ class NN(object):
         for fen, move, halfmove_score, fullmove in batch:
             inputs_pos[batchNo] = self.piece_placement_map(fen).flatten()
             inputs_regul[batchNo][0] = halfmove_score
-            inputs_regul[batchNo][1] = fullmove
+            # inputs_regul[batchNo][1] = fullmove
 
             out_from[batchNo][move.from_square] = score
             out_to[batchNo][move.to_square] = score

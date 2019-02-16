@@ -16,9 +16,11 @@ class Player(object):
         self.piece_index = piece_index
         self.board = None
         self.nn = NN()
+        self._learning_data = []
 
     def get_move(self):
-        weights_from, weights_to = self.nn.query(self.board.board_fen(), self.board.halfmove_clock / 100.0)
+        halfmove_score = self.board.halfmove_clock / 100.0
+        weights_from, weights_to = self.nn.query(self.board.board_fen(), halfmove_score, self.board.fullmove_number)
         move_rating = []
         for move in self.board.generate_legal_moves():
             sr = move.from_square // 8
@@ -33,6 +35,7 @@ class Player(object):
             move_rating.append((move, score))
 
         move_rating.sort(key=lambda x: x[1], reverse=True)
+        selected_move = move_rating[0][0] if move_rating else chess.Move.null()
         for move, score in move_rating:
             self.board.push(move)
             try:
@@ -41,9 +44,11 @@ class Player(object):
             finally:
                 self.board.pop()
 
-            return move
+            selected_move = move
+            break
 
-        return move_rating[0][0] if move_rating else chess.Move.null()
+        self._learning_data.append((self.board.board_fen(), selected_move, halfmove_score, self.board.fullmove_number))
+        return selected_move
 
     def learn(self):
         result = self.board.result(claim_draw=True)
@@ -52,12 +57,7 @@ class Player(object):
         elif result == '0-1':
             score = 1 if self.piece_index else -1
         else:
-            score = -0.25  # we play to win, not to draw
+            score = 0  # we play to win, not to draw
 
-        batch = []
-        playback = chess.Board(fen=self.board.starting_fen)
-        for move in self.board.move_stack:
-            batch.append((playback.board_fen(), move))
-            playback.push(move)
-
-        self.nn.learn(score, batch)
+        self.nn.learn(score, self._learning_data)
+        self._learning_data.clear()

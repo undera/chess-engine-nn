@@ -4,6 +4,8 @@ import numpy as np
 from keras import layers, Model
 from keras.utils import plot_model
 
+PIECE_MAP = "PpNnBbRrQqKk"
+
 
 class NN(object):
     def __init__(self) -> None:
@@ -26,7 +28,7 @@ class NN(object):
         return model
 
     def query(self, brd):
-        data = brd.piece_placement.flatten()[np.newaxis, ...]
+        data = self.piece_placement_map(brd).flatten()[np.newaxis, ...]
         res = self._model.predict_on_batch(data)
 
         frm1 = res[0][0]
@@ -34,3 +36,28 @@ class NN(object):
         tto1 = res[1][0]
         tto2 = np.reshape(tto1, (-1, 8))
         return frm2, tto2
+
+    def piece_placement_map(self, brd):
+        """
+
+        :type brd: chess.Board
+        """
+        piece_placement = np.full((8, 8, 12), 0)  # rank, col, piece kind
+
+        placement = brd.board_fen()
+        rankn = 8
+        for rank in placement.split('/'):
+            rankn -= 1
+            coln = 0
+            for col in rank:
+                try:
+                    coln += int(col)
+                except:
+                    cell = piece_placement[rankn][coln]
+                    cell[PIECE_MAP.index(col)] = 1
+                    coln += 1
+
+            assert coln == 8
+        assert rankn == 0
+
+        return piece_placement

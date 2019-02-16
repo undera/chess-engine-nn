@@ -15,7 +15,7 @@ class Player(object):
         super().__init__()
         self.piece_index = piece_index
         self.board = None
-        self.nn = NN()
+        self.nn = NN("%s.hdf5" % self.piece_index)
         self._learning_data = []
 
     def get_move(self):
@@ -57,7 +57,8 @@ class Player(object):
         elif result == '0-1':
             score = 1 if self.piece_index else -1
         else:
-            score = 0  # we play to win, not to draw
+            score = -0.1  # we play to win, not to draw
 
         self.nn.learn(score, self._learning_data)
         self._learning_data.clear()
+        self.nn.save("%s.hdf5" % self.piece_index)

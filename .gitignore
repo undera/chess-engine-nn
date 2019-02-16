@@ -3,3 +3,4 @@
 /viewer/
 *.pgn
 *.pyc
+*.hdf5

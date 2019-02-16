@@ -1,7 +1,8 @@
 import logging
+import os
 
 import numpy as np
-from keras import layers, Model
+from keras import layers, Model, models
 from keras.layers import concatenate
 from keras.utils import plot_model
 
@@ -9,10 +10,16 @@ PIECE_MAP = "PpNnBbRrQqKk"
 
 
 class NN(object):
-    def __init__(self) -> None:
+    def __init__(self, filename) -> None:
         super().__init__()
-        self._model = self._get_nn()
+        if os.path.exists(filename):
+            self._model = models.load_model(filename)
+        else:
+            self._model = self._get_nn()
         self._model.summary(print_fn=logging.debug)
+
+    def save(self, filename):
+        self._model.save(filename, overwrite=True)
 
     def _get_nn(self):
         positions = layers.Input(shape=(8 * 8 * 12,))  # 12 is len of PIECE_MAP
@@ -89,4 +96,4 @@ class NN(object):
 
         res = self._model.fit(inputs, outputs, batch_size=len(batch), epochs=1, verbose=False)
         # logging.debug("Trained: %s", [res.history[key] for key in res.history if key.endswith("_acc")])
-        #logging.debug("Trained: %s", res.history['loss'])
+        # logging.debug("Trained: %s", res.history['loss'])

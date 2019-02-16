@@ -1,39 +1,64 @@
 import logging
+import sys
 
 from chess import STARTING_FEN, Board, pgn
 
 from player import Player
 
-if __name__ == "__main__":
-    logging.basicConfig(level=logging.DEBUG)
 
+def record_results(brd):
+    journal = pgn.Game.from_board(brd)
+    journal.headers.clear()
+    journal.headers["White"] = "Lisa"
+    journal.headers["Black"] = "Karen"
+    journal.headers["Result"] = brd.result(claim_draw=True)
+    if brd.is_checkmate():
+        journal.end().comment = "checkmate"
+    elif brd.can_claim_fifty_moves():
+        journal.end().comment = "50 moves claim"
+    elif brd.can_claim_threefold_repetition():
+        journal.end().comment = "threefold claim"
+    elif brd.is_insufficient_material():
+        journal.end().comment = "insufficient material"
+    elif not any(brd.generate_legal_moves()):
+        journal.end().comment = "stalemate"
+    else:
+        journal.end().comment = "by other reason"
+
+    exporter = pgn.StringExporter(headers=True, variations=True, comments=True)
+    logging.info("\n%s", journal.accept(exporter))
+    with open("last.pgn", "w") as out:
+        exporter = pgn.FileExporter(out)
+        journal.accept(exporter)
+
+
+def play_one_game(pwhite, pblack):
     board = Board(STARTING_FEN)
-
-    white = Player(board, 0)
-    black = Player(board, 1)
+    pwhite.board = board
+    pblack.board = board
 
     while True:
-        wmove = white.get_move()
+        wmove = pwhite.get_move()
         board.push(wmove)
         if board.is_game_over(claim_draw=True) or not wmove:
             break
 
-        bmove = black.get_move()
+        bmove = pblack.get_move()
         board.push(bmove)
         if board.is_game_over(claim_draw=True) or not bmove:
             break
+    record_results(board)
+    return board
 
-    # record results
-    journal = pgn.Game.from_board(board)
-    journal.headers.clear()
-    journal.headers["White"] = "Lisa"
-    journal.headers["Black"] = "Karen"
-    journal.headers["Result"] = board.result(claim_draw=True)
-    journal.end().comment = ""
 
-    exporter = pgn.StringExporter(headers=True, variations=True, comments=True)
-    logging.info("\n%s", journal.accept(exporter))
+if __name__ == "__main__":
+    sys.setrecursionlimit(1500)
+    logging.basicConfig(level=logging.DEBUG)
 
-    with open("last.pgn", "w") as out:
-        exporter = pgn.FileExporter(out)
-        journal.accept(exporter)
+    white = Player(0)
+    black = Player(1)
+
+    play_one_game(white, black)
+
+    white.learn()
+    black.learn()

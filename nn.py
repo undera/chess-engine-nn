@@ -30,8 +30,8 @@ class NN(object):
         plot_model(model, to_file='model.png', show_shapes=True)
         return model
 
-    def query(self, brd, fiftyturnscore):
-        position = self.piece_placement_map(brd).flatten()[np.newaxis, ...]
+    def query(self, fen, fiftyturnscore):
+        position = self.piece_placement_map(fen).flatten()[np.newaxis, ...]
         regulations = np.zeros((1,))
         regulations[0] = fiftyturnscore
         if fiftyturnscore>0.5:
@@ -44,14 +44,10 @@ class NN(object):
         tto2 = np.reshape(tto1, (-1, 8))
         return frm2, tto2
 
-    def piece_placement_map(self, brd):
-        """
-
-        :type brd: chess.Board
-        """
+    def piece_placement_map(self, fen):
         piece_placement = np.full((8, 8, 12), 0)  # rank, col, piece kind
 
-        placement = brd.board_fen()
+        placement = fen
         rankn = 8
         for rank in placement.split('/'):
             rankn -= 1
@@ -68,3 +64,6 @@ class NN(object):
         assert rankn == 0
 
         return piece_placement
+
+    def learn(self, score, batch):
+        pass

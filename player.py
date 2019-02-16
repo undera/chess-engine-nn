@@ -20,6 +20,11 @@ class Player(object):
 
     def get_move(self):
         halfmove_score = self.board.halfmove_clock / 100.0
+        selected_move = self._choose_best_move(halfmove_score)
+        self._learning_data.append((self.board.board_fen(), selected_move, halfmove_score, self.board.fullmove_number))
+        return selected_move
+
+    def _choose_best_move(self, halfmove_score):
         weights_from, weights_to = self.nn.query(self.board.board_fen(), halfmove_score, self.board.fullmove_number)
         move_rating = []
         for move in self.board.generate_legal_moves():
@@ -33,7 +38,6 @@ class Player(object):
 
             score = abs(sw) * abs(dw) * numpy.sign(min(sw, dw))
             move_rating.append((move, score))
-
         move_rating.sort(key=lambda x: x[1], reverse=True)
         selected_move = move_rating[0][0] if move_rating else chess.Move.null()
         for move, score in move_rating:
@@ -46,8 +50,6 @@ class Player(object):
 
             selected_move = move
             break
-
-        self._learning_data.append((self.board.board_fen(), selected_move, halfmove_score, self.board.fullmove_number))
         return selected_move
 
     def learn(self):

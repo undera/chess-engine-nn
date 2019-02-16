@@ -2,46 +2,117 @@
 <html>
 <head lang="en">
     <meta charset="UTF-8">
-    <title>Chess NN</title>
+    <title>Versus Chess NN</title>
 
     <!-- Libraries Js from PgnViewerJS -->
-    <script src="viewer/js/pgnvjs.js" type="text/javascript"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.2/chess.min.js" type="text/javascript"></script>
+    <script src="chessboard/js/chessboard-0.3.0.min.js" type="text/javascript"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.3.1/jquery.min.js" type="text/javascript"></script>
 
     <!-- CSS used -->
-    <link rel="stylesheet" href="viewer/css/pgnvjs.css">
+    <link rel="stylesheet" href="chessboard/css/chessboard-0.3.0.min.css">
     <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/font-awesome/4.4.0/css/font-awesome.min.css">
+    <style type="text/css">
+        .highlight-white {
+            -webkit-box-shadow: inset 0 0 3px 3px yellow;
+            -moz-box-shadow: inset 0 0 3px 3px yellow;
+            box-shadow: inset 0 0 3px 3px yellow;
+        }
 
+        .highlight-black {
+            -webkit-box-shadow: inset 0 0 3px 3px blue;
+            -moz-box-shadow: inset 0 0 3px 3px blue;
+            box-shadow: inset 0 0 3px 3px blue;
+        }
+    </style>
 </head>
 <body>
-<div id="board" style="width: 500px" class='merida zeit'    ></div>
+<div id="board"></div>
 <script>
-    var pgn = '[Event "Paris"]\
-    [Site "?"]\
-    [Date "1821.??.??"]\
-    [Round "3"]\
-    [White "Lewis, William"]\
-    [Black "Deschapelles, Alexandre"]\
-    [Result "1-0"]\
-    [Annotator "JvR"]\
-    [EventDate "1821.??.??"]\
-\
-    {The development of chess was stimulated in the coffee houses. Philidor and\
-        Stamma played in Old Slaughter (London 1747). Only the result is known (+8, =1,\
-            -1). At the beginning of the nineteenth century it became possible to travel\
-        from London to Paris within a week. Lewis travelled as a tourist to Paris. At\
-        the Cafe de la Regence he played three games in four hours against\
-        Deschappeles. Lewis got a pawn and the move in each game. Two games ended in a\
-        draw. The decisive combination in game three follows.} \
-    17. f4 $1 { White opens the position for an attack on the central files.} 17... d5 18. Bb3\
-    {Black threatened 18...Qc5+.} 18... dxe4 19. Nxe4 $1 {Central pawn vanish.}\
-    19... fxe4 20. fxe5+ Ke8 21. Bf7+ Qxf7 22. Rxf7 Kxf7 23. Qb3+ $2 (23. Qf4+ {\
-        continues the attack.}) 23... Ke7 $2 (23... Re6 {stops the attack.}) 24. Qg8\
-    Bf8 25. Qg5+ Kf7 26. Rf1+ Ke8 27. Qg8 {\
-        The players were ready for dinner in time.}';
-    var cfg = { position: 'r1b2k2/pp2q1b1/2pp3r/4pp2/2B1P3/2N3Q1/PPP2PPP/3R1RK1 w - - 0 17',
-        pgn: pgn, locale: 'en', pieceStyle: 'merida' };
-    var board = pgnEdit('board', cfg);
+    var board,
+        boardEl = $('#board'),
+        game = new Chess(),
+        squareToHighlight;
+
+    var removeHighlights = function (color) {
+        boardEl.find('.square-55d63')
+            .removeClass('highlight-' + color);
+    };
+
+    // do not pick up pieces if the game is over
+    // only pick up pieces for White
+    var onDragStart = function (source, piece, position, orientation) {
+        if (game.in_checkmate() === true || game.in_draw() === true ||
+            piece.search(/^b/) !== -1) {
+            return false;
+        }
+    };
+
+    var makeAIMove = function () {
+        $.get("http://localhost:8090/", function (san) {
+            var move = game.move(san);
+            if (!move) return;
+
+            // highlight black's move
+            removeHighlights('black');
+            boardEl.find('.square-' + move.from).addClass('highlight-black');
+            squareToHighlight = move.to;
+
+            // update the board to the new position
+            board.position(game.fen());
+        });
+    };
+
+    var onDrop = function (source, target) {
+        // see if the move is legal
+        var move = game.move({
+            from: source,
+            to: target,
+            promotion: 'q' // NOTE: always promote to a queen for example simplicity
+        });
+
+        // illegal move
+        if (move === null) return 'snapback';
+
+        // highlight white's move
+        removeHighlights('white');
+        boardEl.find('.square-' + source).addClass('highlight-white');
+        boardEl.find('.square-' + target).addClass('highlight-white');
+
+        $.post("http://localhost:8090/", move.san, function () {
+            // make move for black
+            window.setTimeout(makeAIMove, 250);
+        });
+    };
+
+    var onMoveEnd = function () {
+        boardEl.find('.square-' + squareToHighlight)
+            .addClass('highlight-black');
+    };
+
+    // update the board position after the piece snap
+    // for castling, en passant, pawn promotion
+    var onSnapEnd = function () {
+        board.position(game.fen());
+    };
+
+    var cfg = {
+        draggable: true,
+        position: 'start',
+        onDragStart: onDragStart,
+        onDrop: onDrop,
+        onMoveEnd: onMoveEnd,
+        onSnapEnd: onSnapEnd,
+        pieceTheme: 'chessboard/img/chesspieces/wikipedia/{piece}.png'
+    };
+    board = ChessBoard('board', cfg);
+
+
+    window.setTimeout(function () {
+
+        $.get("http://localhost:8090/", function (str) {
+        });
+    }, 500);
 </script>
 </body>
 </html>

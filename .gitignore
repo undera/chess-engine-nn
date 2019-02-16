@@ -4,3 +4,4 @@
 *.pgn
 *.pyc
 *.hdf5
+/chessboard/

@@ -1,6 +1,6 @@
 # Inspired by TCEC Season 14 - Superfinal
 # where Leela was trying to fry Stockfish
-
+import copy
 import logging
 
 import chess
@@ -32,9 +32,10 @@ class Board(object):
         self.moves = []
         self.starting_fen = None
         self.validator = chess.Board()  # to make sure we don't screw up
+        self._3fold_board = []
 
     def is_playable(self):
-        return len(self.moves) < 1000
+        return len(self.moves) < 100
 
     def make_move(self, move):
         # TODO: check 3-fold and 50-move
@@ -46,17 +47,20 @@ class Board(object):
         label = move_to_label(move)
 
         logging.info("New move: %s", label)
+        self.validator.push_san(label)
         assert self.piece_at(src[1], src[2]) % 2 == self.active_index
 
-        self.validator.push_san(label)
-        piece_onehot = self.piece_placement[src[1]][src[2]]
-        self.piece_placement[src[1]][src[2]] = 0
+        self.piece_placement[src[1]][src[2]][src[3]] = 0
         captured = self.piece_at(dst[1], dst[2])
+        if captured or src[3] <= 1:
+            self._3fold_board = []
         if captured and PIECE_MAP[captured].upper() == 'K':
             raise ValueError("Checkmate")
-        self.piece_placement[dst[1]][dst[2]] = piece_onehot
+        self.piece_placement[dst[1]][dst[2]][dst[3]] = 0
+        self.piece_placement[dst[1]][dst[2]][src[3]] = 1
 
         self.moves.append(label)
+        self._3fold_board.append(copy.deepcopy(self.piece_placement))
 
         if self.active_index:
             self.move_num += 1
@@ -113,11 +117,12 @@ class Player(object):
         rev_from = self._reverse_index(weights_from)
         rev_to = self._reverse_index(weights_to)
 
-        move = self._choose_move(rev_from, rev_to)
-        # TODO: check 3-fold here
-        return move
+        for move in self._possible_moves(rev_from, rev_to):
+            # TODO: check 3-fold here
+            # TODO: check for exposing king to check
+            return move
 
-    def _choose_move(self, rev_from, rev_to):
+    def _possible_moves(self, rev_from, rev_to):
         possible_moves = []
         for ffrom in rev_from:
             piece_class = PIECE_MAP[ffrom[3]].upper()
@@ -136,8 +141,8 @@ class Player(object):
                     possible_moves.append(move)
 
         possible_moves.sort(key=lambda x: x[0], reverse=True)
-        # check for exposing king to check
-        return possible_moves[0] if possible_moves else None
+        for move in possible_moves:
+            yield move
 
     def _is_valid_move(self, piece_class, src, dest):
         _, src_r, src_c, src_p = src
@@ -151,7 +156,8 @@ class Player(object):
                 if src_r + direction == dst_r and dst_p is None:
                     # regular move
                     return True
-                elif src_r + direction * 2 == dst_r and dst_p is None \
+                elif (src_r == 1 or src_r == 7) \
+                        and src_r + direction * 2 == dst_r and dst_p is None \
                         and self.board.piece_at(src_r + direction, src_c) is None:
                     # first move
                     return True

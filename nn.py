@@ -2,6 +2,7 @@ import logging
 import numpy as np
 
 from keras import layers, Model
+from keras.layers import concatenate, Reshape
 from keras.utils import plot_model
 
 PIECE_MAP = "PpNnBbRrQqKk"
@@ -15,21 +16,27 @@ class NN(object):
 
     def _get_nn(self):
         positions = layers.Input(shape=(8 * 8 * 12,))  # 12 is len of PIECE_MAP
-        hidden = layers.Dense(64, activation="sigmoid")(positions)
+        regulation = layers.Input(shape=(1,))  # 12 is len of PIECE_MAP
+        inputs = concatenate([positions, regulation])
+        hidden = layers.Dense(64, activation="sigmoid")(inputs)
         hidden = layers.Dense(64, activation="sigmoid")(hidden)
         out_from = layers.Dense(64, activation="tanh")(hidden)
         out_to = layers.Dense(64, activation="tanh")(hidden)
 
-        model = Model(inputs=[positions], outputs=[out_from, out_to])
+        model = Model(inputs=[positions, regulation], outputs=[out_from, out_to])
         model.compile(optimizer='nadam',
                       loss='categorical_crossentropy',
                       metrics=['categorical_accuracy'])
         plot_model(model, to_file='model.png', show_shapes=True)
         return model
 
-    def query(self, brd):
-        data = self.piece_placement_map(brd).flatten()[np.newaxis, ...]
-        res = self._model.predict_on_batch(data)
+    def query(self, brd, fiftyturnscore):
+        position = self.piece_placement_map(brd).flatten()[np.newaxis, ...]
+        regulations = np.zeros((1,))
+        regulations[0] = fiftyturnscore
+        if fiftyturnscore>0.5:
+            pass
+        res = self._model.predict_on_batch([position, regulations])
 
         frm1 = res[0][0]
         frm2 = np.reshape(frm1, (-1, 8))

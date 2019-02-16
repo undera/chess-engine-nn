@@ -15,12 +15,12 @@ if __name__ == "__main__":
     while True:
         wmove = white.get_move()
         board.push(wmove)
-        if board.is_game_over(claim_draw=True):
+        if board.is_game_over(claim_draw=True) or not wmove:
             break
 
         bmove = black.get_move()
         board.push(bmove)
-        if board.is_game_over(claim_draw=True):
+        if board.is_game_over(claim_draw=True) or not bmove:
             break
 
     # record results

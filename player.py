@@ -1,9 +1,7 @@
 # Inspired by TCEC Season 14 - Superfinal
 # where Leela was trying to fry Stockfish
-import math
-import numpy
-
 import chess
+import numpy
 
 from nn import NN
 

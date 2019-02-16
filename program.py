@@ -2,7 +2,7 @@ import logging
 
 from chess import STARTING_FEN, Board, pgn
 
-from objects import Player
+from player import Player
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.DEBUG)

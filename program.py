@@ -23,12 +23,17 @@ if __name__ == "__main__":
         if board.is_game_over(claim_draw=True):
             break
 
-    logging.info("Game ended: %s", board.result(claim_draw=True))
+    # record results
+    journal = pgn.Game.from_board(board)
+    journal.headers.clear()
+    journal.headers["White"] = "Lisa"
+    journal.headers["Black"] = "Karen"
+    journal.headers["Result"] = board.result(claim_draw=True)
+    journal.end().comment = ""
+
+    exporter = pgn.StringExporter(headers=True, variations=True, comments=True)
+    logging.info("\n%s", journal.accept(exporter))
+
     with open("last.pgn", "w") as out:
-        game = pgn.Game.from_board(board)
-        game.headers.clear()
-        game.headers["White"] = "Lisa"
-        game.headers["Black"] = "Karen"
-        game.end().comment = board.result(claim_draw=True)
         exporter = pgn.FileExporter(out)
-        game.accept(exporter)
+        journal.accept(exporter)

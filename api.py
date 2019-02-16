@@ -1,5 +1,5 @@
 import logging
-from http.server import BaseHTTPRequestHandler, HTTPServer
+from http.server import BaseHTTPRequestHandler, HTTPServer, SimpleHTTPRequestHandler
 from queue import Queue
 from threading import Thread
 
@@ -7,20 +7,26 @@ from player import Player
 from program import play_one_game
 
 
-class ChessAPIHandler(BaseHTTPRequestHandler):
+class ChessAPIHandler(SimpleHTTPRequestHandler):
+
     def do_GET(self):
-        #item = self.server.oqueue.get(False)
-        item = "test"
+        if self.path != '/':
+            return super().do_GET()
+
+        logging.debug("Getting move to send...")
+        item = self.server.oqueue.get(True)
         logging.debug("Sending move: %s", item)
         self.send_response(200)
         self.send_header("Content-type", "text/plain")
-        self.send_header("Access-Control-Allow-Origin", "*")
         self.end_headers()
         self.wfile.write(bytes(str(item), 'ascii'))
 
     def do_POST(self):
-        item = self.rfile
+        content_len = int(self.headers.get('Content-Length'))
+        item = self.rfile.read(content_len)
+        item = item.decode('ascii')
         logging.debug("Received move: %s", item)
+        self.server.iqueue.put(item)
         self.send_response(202)
         self.end_headers()
         self.wfile.write(bytes(str(item), 'ascii'))
@@ -45,7 +51,8 @@ class PlayerAPI(Player):
         self.httpd.serve_forever()
 
     def _choose_best_move(self, halfmove_score):
-        self.oqueue.put(self.board.move_stack[-1])
+        if self.board.move_stack:
+            self.oqueue.put(self.board.move_stack[-1])
         logging.debug("Getting next move...")
         move_str = self.iqueue.get(True)
         return self.board.parse_san(move_str)
@@ -54,10 +61,13 @@ class PlayerAPI(Player):
 if __name__ == "__main__":
     logging.basicConfig(level=logging.DEBUG)
 
-    white = Player(0)
-    black = PlayerAPI(1)
+    white = PlayerAPI(0)
+    black = Player(1)
 
-    play_one_game(white, black, 1)
+    cnt = 1
+    while True:
+        play_one_game(white, black, cnt)
 
-    # white.learn()
-    # black.learn()
+        white.learn()
+        black.learn()
+        cnt += 1

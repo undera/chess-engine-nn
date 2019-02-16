@@ -12,6 +12,7 @@ if __name__ == "__main__":
     black = Player(board, 1)
 
     with open("last.pgn", "w") as out:
+        out.write("[White \"Lisa\"]\n[Black \"Karen\"]\n")
         while True:
             wmove = white.get_move()
             out.write("%d. %s " % (board.move_num, board.make_move(wmove)))

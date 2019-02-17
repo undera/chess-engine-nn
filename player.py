@@ -1,5 +1,6 @@
 # Inspired by TCEC Season 14 - Superfinal
 # where Leela was trying to fry Stockfish
+import logging
 
 import chess
 import numpy
@@ -18,10 +19,16 @@ class Player(object):
         self.nn = NN("%s.hdf5" % self.piece_index)
 
     def makes_move(self):
+        self.nn.after_their_move(self.board, -1 if self.piece_index else 1)
         move = self._choose_best_move()
+        move.san = self.board.san(move)
         self.nn.record_for_learning(self.board, move)
         self.board.push(move)
-        return move and not self.board.is_game_over(claim_draw=True)
+        self.nn.after_our_move(self.board)
+        not_over = move and not self.board.is_game_over(claim_draw=True)
+        if not not_over:  # TODO: handle mate
+            self.nn.after_their_move(self.board, -1 if self.piece_index else 1)
+        return not_over
 
     def _choose_best_move(self):
         halfmove_score = self.board.halfmove_clock / 100.0
@@ -61,5 +68,6 @@ class Player(object):
         else:
             score = 1.0 / self.board.fullmove_number - 0.5  # we play to win, not to draw
 
-        self.nn.learn(score)
+        # logging.debug("Player #%s is learning...", self.piece_index)
+        self.nn.learn(score, -1 if self.piece_index else 1)
         self.nn.save("%s.hdf5" % self.piece_index)

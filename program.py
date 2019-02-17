@@ -40,7 +40,7 @@ def play_one_game(pwhite, pblack, rnd):
     pwhite.board = board
     pblack.board = board
 
-    while white.makes_move() and black.makes_move():
+    while pwhite.makes_move() and pblack.makes_move():
         pass
 
     record_results(board, rnd)

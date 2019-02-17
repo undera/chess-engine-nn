@@ -1,12 +1,22 @@
 import logging
 import os
+from collections import Counter
 
 import numpy as np
+from chess import PAWN, WHITE
 from keras import layers, Model, models
 from keras.layers import concatenate
 from keras.utils import plot_model
 
 PIECE_MAP = "PpNnBbRrQqKk"
+PIECE_MOBILITY = {
+    "P": 1,
+    "N": 8,
+    "B": 13,
+    "R": 14,
+    "Q": 27,
+    "K": 64,
+}
 
 
 class NN(object):
@@ -18,6 +28,7 @@ class NN(object):
             self._model = self._get_nn()
         self._model.summary(print_fn=logging.debug)
         self._learning_data = []
+        self._opps_mobility = 0
 
     def save(self, filename):
         self._model.save(filename, overwrite=True)
@@ -28,7 +39,6 @@ class NN(object):
         inputs = concatenate([positions, regulation])
 
         hidden = layers.Dense(64, activation="sigmoid")(inputs)
-        hidden = layers.Dense(64, activation="sigmoid")(hidden)
         hidden = layers.Dense(64, activation="sigmoid")(hidden)
 
         out_from = layers.Dense(64, activation="tanh")(hidden)
@@ -77,31 +87,113 @@ class NN(object):
 
         return piece_placement
 
-    def learn(self, score):
-        batch = self._learning_data
-        inputs_pos = np.full((len(batch), 8 * 8 * 12), 0)
-        inputs_regul = np.full((len(batch), 2,), 0)
+    def learn(self, result, side_coef):
+        filtered = True
+        batch_len = len([x for x in self._learning_data if x['score']])
+        if not batch_len:
+            logging.warning("No changes to learn from!")
+            filtered = False
+            batch_len = len(self._learning_data)
+        inputs_pos = np.full((batch_len, 8 * 8 * 12), 0)
+        inputs_regul = np.full((batch_len, 2,), 0)
         inputs = [inputs_pos, inputs_regul]
 
-        out_from = np.full((len(batch), 64,), 0)
-        out_to = np.full((len(batch), 64,), 0)
+        out_from = np.full((batch_len, 64,), 0)
+        out_to = np.full((batch_len, 64,), 0)
         outputs = [out_from, out_to]
 
-        batchNo = 0
-        for fen, move, halfmove_score, fullmove in batch:
-            inputs_pos[batchNo] = self.piece_placement_map(fen).flatten()
-            inputs_regul[batchNo][0] = halfmove_score
-            inputs_regul[batchNo][1] = fullmove
+        batch_n = 0
+        ms = 0
+        ns = 0
+        for rec in self._learning_data:
+            if not rec['score'] and filtered:
+                continue
+            inputs_pos[batch_n] = self.piece_placement_map(rec['board']).flatten()
+            inputs_regul[batch_n][0] = rec['halfmove']
+            inputs_regul[batch_n][1] = rec['fullmove']
 
-            out_from[batchNo][move.from_square] = score
-            out_to[batchNo][move.to_square] = score
-            batchNo += 1
+            ms = max(ms, rec['score'])
+            ns = min(ns, rec['score'])
+            score = rec['score'] / 64.0
+            if abs(score) > 1.0:
+                score = np.sign(score)
+            out_from[batch_n][rec['move'].from_square] = score
+            out_to[batch_n][rec['move'].to_square] = score
+            batch_n += 1
 
-        res = self._model.fit(inputs, outputs, batch_size=len(batch), epochs=1, verbose=False)
+        res = self._model.fit(inputs, outputs, batch_size=batch_len, epochs=1, verbose=False)
         # logging.debug("Trained: %s", [res.history[key] for key in res.history if key.endswith("_acc")])
         # logging.debug("Trained: %s", res.history['loss'])
+        # logging.debug("Scores: %.1f/%.1f", ns, ms)
         self._learning_data.clear()
 
     def record_for_learning(self, board, selected_move):
         halfmove_score = board.halfmove_clock / 100.0
-        self._learning_data.append((board.board_fen(), selected_move, halfmove_score, board.fullmove_number))
+        self._learning_data.append({
+            'board': board.board_fen(),
+            'move': selected_move,
+            'halfmove': halfmove_score,
+            'fullmove': board.fullmove_number,
+            'score': 0,
+            'material': 0,
+            'mobility': 0,
+        })
+
+    def after_our_move(self, board):
+        self._opps_mobility = self._get_mobility(board)
+
+    def after_their_move(self, board, side_coef):
+        """
+        :type board: chess.Board
+        """
+        if not self._learning_data:  # first move
+            return
+
+        prev = self._learning_data[-1]
+        prev['material'] = self._get_material_balance(board)
+        our_mobility = self._get_mobility(board)
+        prev['mobility'] = our_mobility - self._opps_mobility
+        if len(self._learning_data) > 1:
+            material_change = prev['material'] - self._learning_data[-2]['material']
+            mobility_change = prev['mobility'] - self._learning_data[-2]['mobility']
+        else:
+            material_change = 0
+            mobility_change = prev['mobility']
+        score = mobility_change / 10.0 + side_coef * material_change
+        # logging.debug("Move of %s: %s %s", side_coef, prev['move'].san, score)
+        prev['score'] = score
+
+    def _get_material_balance(self, board):
+        fen = board.board_fen()
+        chars = Counter(fen)
+        score = 0
+        for piece in PIECE_MOBILITY:
+            if piece in chars:
+                score += PIECE_MOBILITY[piece] * chars[piece]
+
+            if piece.lower() in chars:
+                score -= PIECE_MOBILITY[piece] * chars[piece.lower()]
+
+        return score
+
+    def _get_mobility(self, board):
+        """
+
+        :type board: chess.Board
+        """
+        score = 0
+        moves = list(board.generate_legal_moves())
+        for move in moves:
+            src_piece = board.piece_at(move.from_square)
+            if src_piece.piece_type == PAWN:
+                if src_piece.color == WHITE:
+                    score += 1 + 0.1 * (move.to_square // 8 - 8)
+                else:
+                    score += 1 + 0.1 * (8 - move.to_square // 8)
+            else:
+                score += 1
+
+            dest_piece = board.piece_at(move.to_square)
+            if dest_piece:  # attack bonus
+                score += PIECE_MOBILITY[dest_piece.symbol().upper()]
+        return score

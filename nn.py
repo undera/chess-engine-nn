@@ -17,6 +17,7 @@ class NN(object):
         else:
             self._model = self._get_nn()
         self._model.summary(print_fn=logging.debug)
+        self._learning_data = []
 
     def save(self, filename):
         self._model.save(filename, overwrite=True)
@@ -44,7 +45,7 @@ class NN(object):
         position = self.piece_placement_map(fen).flatten()[np.newaxis, ...]
         regulations = np.zeros((2,))[np.newaxis, ...]
         regulations[0][0] = fiftyturnscore
-        # regulations[0][1] = fullmove
+        regulations[0][1] = fullmove
         if fiftyturnscore > 0.5:
             pass
         res = self._model.predict_on_batch([position, regulations])
@@ -76,7 +77,8 @@ class NN(object):
 
         return piece_placement
 
-    def learn(self, score, batch):
+    def learn(self, score):
+        batch = self._learning_data
         inputs_pos = np.full((len(batch), 8 * 8 * 12), 0)
         inputs_regul = np.full((len(batch), 2,), 0)
         inputs = [inputs_pos, inputs_regul]
@@ -89,7 +91,7 @@ class NN(object):
         for fen, move, halfmove_score, fullmove in batch:
             inputs_pos[batchNo] = self.piece_placement_map(fen).flatten()
             inputs_regul[batchNo][0] = halfmove_score
-            # inputs_regul[batchNo][1] = fullmove
+            inputs_regul[batchNo][1] = fullmove
 
             out_from[batchNo][move.from_square] = score
             out_to[batchNo][move.to_square] = score
@@ -98,3 +100,8 @@ class NN(object):
         res = self._model.fit(inputs, outputs, batch_size=len(batch), epochs=1, verbose=False)
         # logging.debug("Trained: %s", [res.history[key] for key in res.history if key.endswith("_acc")])
         # logging.debug("Trained: %s", res.history['loss'])
+        self._learning_data.clear()
+
+    def record_for_learning(self, board, selected_move):
+        halfmove_score = board.halfmove_clock / 100.0
+        self._learning_data.append((board.board_fen(), selected_move, halfmove_score, board.fullmove_number))

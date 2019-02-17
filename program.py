@@ -40,33 +40,11 @@ def play_one_game(pwhite, pblack, rnd):
     pwhite.board = board
     pblack.board = board
 
-    while True:
-        wmove = pwhite.get_move()
-        board.push(wmove)
-        if board.is_game_over(claim_draw=True) or not wmove:
-            break
+    while white.makes_move() and black.makes_move():
+        pass
 
-        bmove = pblack.get_move()
-        board.push(bmove)
-        if board.is_game_over(claim_draw=True) or not bmove:
-            break
     record_results(board, rnd)
     return board
-
-
-class PlayerCLI(Player):
-
-    def _choose_best_move(self, halfmove_score):
-        print("Opponent's move: %s" % self.board.move_stack[-1])
-        while True:
-            move_str = input("Enter next move: ")
-            try:
-                move = self.board.parse_san(move_str)
-                break
-            except ValueError as exc:
-                logging.error("Wrong move, try again: %s", exc)
-
-        return move
 
 
 if __name__ == "__main__":

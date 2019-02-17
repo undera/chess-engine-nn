@@ -1,10 +1,25 @@
 import logging
-from http.server import BaseHTTPRequestHandler, HTTPServer, SimpleHTTPRequestHandler
+from http.server import HTTPServer, SimpleHTTPRequestHandler
 from queue import Queue
 from threading import Thread
 
 from player import Player
 from program import play_one_game
+
+
+class PlayerCLI(Player):
+
+    def _choose_best_move(self):
+        print("Opponent's move: %s" % self.board.move_stack[-1])
+        while True:
+            move_str = input("Enter next move: ")
+            try:
+                move = self.board.parse_san(move_str)
+                break
+            except ValueError as exc:
+                logging.error("Wrong move, try again: %s", exc)
+
+        return move
 
 
 class ChessAPIHandler(SimpleHTTPRequestHandler):
@@ -50,7 +65,7 @@ class PlayerAPI(Player):
     def run(self):
         self.httpd.serve_forever()
 
-    def _choose_best_move(self, halfmove_score):
+    def _choose_best_move(self):
         if self.board.move_stack:
             self.oqueue.put(self.board.move_stack[-1])
         logging.debug("Getting next move...")

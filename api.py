@@ -10,7 +10,7 @@ from program import play_one_game
 class ChessAPIHandler(SimpleHTTPRequestHandler):
 
     def do_GET(self):
-        if self.path != '/':
+        if self.path != '/move':
             return super().do_GET()
 
         logging.debug("Getting move to send...")

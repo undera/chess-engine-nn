@@ -27,7 +27,7 @@
     </style>
 </head>
 <body>
-<div id="board" style="width: 500px"></div>
+<div id="board"></div>
 <script>
     var board,
         boardEl = $('#board'),
@@ -49,7 +49,7 @@
     };
 
     var makeAIMove = function () {
-        $.get("http://localhost:8090/", function (san) {
+        $.get("/move", function (san) {
             var move = game.move(san, {sloppy: true});
             if (!move) {
                 alert("Move not accepted");
@@ -87,8 +87,7 @@
         boardEl.find('.square-' + source).addClass('highlight-white');
         boardEl.find('.square-' + target).addClass('highlight-white');
 
-
-        $.post("http://localhost:8090/", move.san, function () {
+        $.post("/move", move.san, function () {
             if (game.game_over()) {
                 alert("Game over");
                 window.location.reload();

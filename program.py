@@ -76,8 +76,10 @@ if __name__ == "__main__":
     white = Player(0)
     black = Player(1)
 
-    for rnd in range(1000):
+    rnd = 1
+    while True:
         play_one_game(white, black, rnd)
 
         white.learn()
         black.learn()
+        rnd += 1

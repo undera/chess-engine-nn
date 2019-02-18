@@ -6,7 +6,7 @@ from chess import STARTING_FEN, Board, pgn
 from player import Player
 
 
-def record_results(brd, rnd):
+def record_results(brd, rnd, eval1, eval2):
     journal = pgn.Game.from_board(brd)
     journal.headers.clear()
     journal.headers["White"] = "Lisa"
@@ -28,8 +28,8 @@ def record_results(brd, rnd):
 
     # exporter = pgn.StringExporter(headers=True, variations=True, comments=True)
     # logging.info("\n%s", journal.accept(exporter))
-    logging.info("Game #%d: %s by %s, %d moves", rnd, journal.headers["Result"], journal.end().comment,
-                 brd.fullmove_number)
+    logging.info("Game #%d: %s by %s, %d moves, %.1f/%.1f", rnd, journal.headers["Result"], journal.end().comment,
+                 brd.fullmove_number, eval1, eval2)
     with open("last.pgn", "w") as out:
         exporter = pgn.FileExporter(out)
         journal.accept(exporter)
@@ -40,11 +40,10 @@ def play_one_game(pwhite, pblack, rnd):
     pwhite.board = board
     pblack.board = board
 
-    while pwhite.makes_move() and pblack.makes_move():
+    while pwhite.makes_move() and pblack.makes_move() and board.fullmove_number < 150:
         pass
 
-    record_results(board, rnd)
-    return board
+    record_results(board, rnd, pwhite.learn(), pblack.learn())
 
 
 if __name__ == "__main__":
@@ -57,7 +56,4 @@ if __name__ == "__main__":
     rnd = 1
     while True:
         play_one_game(white, black, rnd)
-
-        white.learn()
-        black.learn()
         rnd += 1

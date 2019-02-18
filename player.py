@@ -16,7 +16,7 @@ class Player(object):
         super().__init__()
         self.piece_index = piece_index
         self.board = None
-        self.nn = NN("%s.hdf5" % self.piece_index)
+        self.nn = NN("%s.hdf5" % self.piece_index, piece_index)
 
     def makes_move(self):
         self.nn.after_their_move(self.board, -1 if self.piece_index else 1)
@@ -26,8 +26,6 @@ class Player(object):
         self.board.push(move)
         self.nn.after_our_move(self.board)
         not_over = move and not self.board.is_game_over(claim_draw=True)
-        if not not_over:  # TODO: handle mate
-            self.nn.after_their_move(self.board, -1 if self.piece_index else 1)
         return not_over
 
     def _choose_best_move(self):
@@ -66,8 +64,9 @@ class Player(object):
         elif result == '0-1':
             score = 1 if self.piece_index else -1
         else:
-            score = 1.0 / self.board.fullmove_number - 0.5  # we play to win, not to draw
+            score = 0
 
         # logging.debug("Player #%s is learning...", self.piece_index)
-        self.nn.learn(score, -1 if self.piece_index else 1)
+        last_eval = self.nn.learn(score, -1 if self.piece_index else 1)
         self.nn.save("%s.hdf5" % self.piece_index)
+        return last_eval

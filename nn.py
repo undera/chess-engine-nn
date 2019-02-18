@@ -20,15 +20,16 @@ PIECE_MOBILITY = {
 
 
 class NN(object):
-    def __init__(self, filename) -> None:
+    def __init__(self, filename, param) -> None:
         super().__init__()
+        self._learning_data = []
+        self._opps_mobility = 0
+        self._param = param
         if os.path.exists(filename):
             self._model = models.load_model(filename)
         else:
             self._model = self._get_nn()
         self._model.summary(print_fn=logging.debug)
-        self._learning_data = []
-        self._opps_mobility = 0
 
     def save(self, filename):
         self._model.save(filename, overwrite=True)
@@ -38,8 +39,11 @@ class NN(object):
         regulation = layers.Input(shape=(2,))  # 12 is len of PIECE_MAP
         inputs = concatenate([positions, regulation])
 
-        hidden = layers.Dense(64, activation="sigmoid")(inputs)
-        hidden = layers.Dense(64, activation="sigmoid")(hidden)
+        size = 64
+        hidden = layers.Dense(size, activation="sigmoid")(inputs)
+        if self._param:
+            hidden = layers.Dense(size * 2, activation="sigmoid")(hidden)
+        hidden = layers.Dense(size, activation="sigmoid")(hidden)
 
         out_from = layers.Dense(64, activation="tanh")(hidden)
         out_to = layers.Dense(64, activation="tanh")(hidden)
@@ -89,7 +93,7 @@ class NN(object):
 
     def learn(self, result, side_coef):
         filtered = True
-        batch_len = len([x for x in self._learning_data if x['score']])
+        batch_len = len(self._learning_data)
         if not batch_len:
             logging.warning("No changes to learn from!")
             filtered = False
@@ -105,27 +109,37 @@ class NN(object):
         batch_n = 0
         ms = 0
         ns = 0
-        for rec in self._learning_data:
+        prev_score = 0
+        while self._learning_data:
+            rec = self._learning_data.pop(0)
+            if not self._learning_data and not rec['score'] and result:
+                rec['score'] = result
+                prev_score = 0
+
             if not rec['score'] and filtered:
                 continue
+
             inputs_pos[batch_n] = self.piece_placement_map(rec['board']).flatten()
             inputs_regul[batch_n][0] = rec['halfmove']
             inputs_regul[batch_n][1] = rec['fullmove']
 
-            ms = max(ms, rec['score'])
-            ns = min(ns, rec['score'])
-            score = rec['score'] / 64.0
+            score = rec['score'] - prev_score
+            ms = max(ms, score)
+            ns = min(ns, score)
+            score = score / 8.0
             if abs(score) > 1.0:
                 score = np.sign(score)
+
             out_from[batch_n][rec['move'].from_square] = score
             out_to[batch_n][rec['move'].to_square] = score
             batch_n += 1
+            prev_score = rec['score']
 
         res = self._model.fit(inputs, outputs, batch_size=batch_len, epochs=1, verbose=False)
         # logging.debug("Trained: %s", [res.history[key] for key in res.history if key.endswith("_acc")])
         # logging.debug("Trained: %s", res.history['loss'])
         # logging.debug("Scores: %.1f/%.1f", ns, ms)
-        self._learning_data.clear()
+        return prev_score
 
     def record_for_learning(self, board, selected_move):
         halfmove_score = board.halfmove_clock / 100.0
@@ -153,13 +167,7 @@ class NN(object):
         prev['material'] = self._get_material_balance(board)
         our_mobility = self._get_mobility(board)
         prev['mobility'] = our_mobility - self._opps_mobility
-        if len(self._learning_data) > 1:
-            material_change = prev['material'] - self._learning_data[-2]['material']
-            mobility_change = prev['mobility'] - self._learning_data[-2]['mobility']
-        else:
-            material_change = 0
-            mobility_change = prev['mobility']
-        score = mobility_change / 10.0 + side_coef * material_change
+        score = prev['mobility'] / 10.0 + side_coef * prev['material']
         # logging.debug("Move of %s: %s %s", side_coef, prev['move'].san, score)
         prev['score'] = score
 
@@ -195,5 +203,5 @@ class NN(object):
 
             dest_piece = board.piece_at(move.to_square)
             if dest_piece:  # attack bonus
-                score += PIECE_MOBILITY[dest_piece.symbol().upper()]
+                score += PIECE_MOBILITY[dest_piece.symbol().upper()] / 2.0
         return score

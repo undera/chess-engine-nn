@@ -82,7 +82,4 @@ if __name__ == "__main__":
     cnt = 1
     while True:
         play_one_game(white, black, cnt)
-
-        white.learn()
-        black.learn()
         cnt += 1

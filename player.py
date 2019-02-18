@@ -41,11 +41,13 @@ class Player(object):
             df = move.to_square % 8
             dw = weights_to[dr][df]
 
-            score = abs(sw) * abs(dw) * numpy.sign(min(sw, dw))
-            move_rating.append((move, score))
+            # score = abs(sw) * abs(dw) * numpy.sign(min(sw, dw))
+            move_rating.append((move, sw, dw))
+        move_rating.sort(key=lambda x: x[2], reverse=True)
         move_rating.sort(key=lambda x: x[1], reverse=True)
+
         selected_move = move_rating[0][0] if move_rating else chess.Move.null()
-        for move, score in move_rating:
+        for move, sw, dw in move_rating:
             self.board.push(move)
             try:
                 if self.board.can_claim_draw():

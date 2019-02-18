@@ -24,7 +24,7 @@ class NN(object):
         super().__init__()
         self._learning_data = []
         self._opps_mobility = 0
-        self._param = param
+        self._param = param  # to vary structure based on side
         if os.path.exists(filename):
             self._model = models.load_model(filename)
         else:
@@ -41,8 +41,6 @@ class NN(object):
 
         size = 64
         hidden = layers.Dense(size, activation="sigmoid")(inputs)
-        if self._param:
-            hidden = layers.Dense(size * 2, activation="sigmoid")(hidden)
         hidden = layers.Dense(size, activation="sigmoid")(hidden)
 
         out_from = layers.Dense(64, activation="tanh")(hidden)

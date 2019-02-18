@@ -40,7 +40,7 @@ def play_one_game(pwhite, pblack, rnd):
     pwhite.board = board
     pblack.board = board
 
-    while pwhite.makes_move() and pblack.makes_move() and board.fullmove_number < 150:
+    while pwhite.makes_move() and pblack.makes_move():  # and board.fullmove_number < 150
         pass
 
     record_results(board, rnd, pwhite.learn(), pblack.learn())

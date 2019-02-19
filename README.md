@@ -7,6 +7,9 @@ It is inspired by TCEC Season 14 - Superfinal, where Leela was trying to fry Sto
 
 I wanted to demonstrate my 7yr-old daughter that making these computer chess players are not as hard. We drew a diagram of playing and learning with NN and I started implementing it. The idea is to have practice and fun, make own mistakes, have discussions with daughter about planning and decision making.
 
+## Diagram
+![](diagram.png)
+
 ## Journal
 
 ### Feb 15, 2019
@@ -43,3 +46,5 @@ We started with material balance, taking possible square control as value of the
  - Rook: 14
  - Queen: 27
  - King: 64 - special value to reflect it's precious
+
+![](model.png)

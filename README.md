@@ -61,6 +61,7 @@ Now it gets tricky, since we need to combine material balance and mobility balan
 Bots are left to play overnight again.
 
 ### 18 Feb, 2019
+
 They've played ~32000 games. Quick game versus Karen shows that still NN miss obvious attacks and loses after human quickly. But this time it does a lot more captures, moves pieces more consistenly forward, does less "dumb cyclic moves".
 
 Watching games of Lisa vs Karen shows consistent pawn promotions and a lot of captures from both sides. Still most of obvious attacks, exchanges are missed. End game is completely dumb, falling into cyclic moves still.
@@ -72,3 +73,11 @@ It's time to summarize what was done over past days:
   - the rules we put as criteria for learning do affect engine move making
   - we should research/experiment with evaluation approach more
   - we should experiment with NN structure more, maybe use LSTM instead of feed-forward
+  - re-learning from last N games might be better than incremental learning from very last game
+  - turning game representation to "always one side" and using exactly same NN for game might make it more robust and universal
+
+### 22 Feb, 2019
+
+Decided to make sing NN that will be able to decide for both sides, using board and move flip for black.
+
+NN structure changed to 6-layers decreasing from 768 to 128 nodes.

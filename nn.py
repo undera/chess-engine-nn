@@ -5,7 +5,6 @@ from collections import Counter
 import numpy as np
 from chess import PAWN, WHITE
 from keras import layers, Model, models
-from keras.layers import concatenate
 from keras.utils import plot_model
 
 PIECE_MAP = "PpNnBbRrQqKk"
@@ -20,11 +19,8 @@ PIECE_MOBILITY = {
 
 
 class NN(object):
-    def __init__(self, filename, param) -> None:
+    def __init__(self, filename) -> None:
         super().__init__()
-        self._learning_data = []
-        self._opps_mobility = 0
-        self._param = param  # to vary structure based on side
         if os.path.exists(filename):
             self._model = models.load_model(filename)
         else:
@@ -36,31 +32,26 @@ class NN(object):
 
     def _get_nn(self):
         positions = layers.Input(shape=(8 * 8 * 12,))  # 12 is len of PIECE_MAP
-        regulation = layers.Input(shape=(2,))  # 12 is len of PIECE_MAP
-        inputs = concatenate([positions, regulation])
 
-        size = 64
-        hidden = layers.Dense(size, activation="sigmoid")(inputs)
-        hidden = layers.Dense(size, activation="sigmoid")(hidden)
+        hidden = layers.Dense((8 * 8 * 10), activation="sigmoid")(positions)
+        hidden = layers.Dense((8 * 8 * 8), activation="sigmoid")(hidden)
+        hidden = layers.Dense((8 * 8 * 6), activation="sigmoid")(hidden)
+        hidden = layers.Dense((8 * 8 * 4), activation="sigmoid")(hidden)
+        hidden = layers.Dense((8 * 8 * 2), activation="sigmoid")(hidden)
 
-        out_from = layers.Dense(64, activation="tanh")(hidden)
-        out_to = layers.Dense(64, activation="tanh")(hidden)
+        out_from = layers.Dense(64, activation="sigmoid")(hidden)
+        out_to = layers.Dense(64, activation="sigmoid")(hidden)
 
-        model = Model(inputs=[positions, regulation], outputs=[out_from, out_to])
+        model = Model(inputs=[positions, ], outputs=[out_from, out_to])
         model.compile(optimizer='nadam',
                       loss='mse',
                       metrics=['accuracy'])
         plot_model(model, to_file='model.png', show_shapes=True)
         return model
 
-    def query(self, fen, fiftyturnscore, fullmove):
-        position = self.piece_placement_map(fen).flatten()[np.newaxis, ...]
-        regulations = np.zeros((2,))[np.newaxis, ...]
-        regulations[0][0] = fiftyturnscore
-        regulations[0][1] = fullmove
-        if fiftyturnscore > 0.5:
-            pass
-        res = self._model.predict_on_batch([position, regulations])
+    def query(self, fen):
+        position = self._fen_to_array(fen).flatten()[np.newaxis, ...]
+        res = self._model.predict_on_batch([position])
 
         frm1 = res[0][0]
         frm2 = np.reshape(frm1, (-1, 8))
@@ -68,7 +59,7 @@ class NN(object):
         tto2 = np.reshape(tto1, (-1, 8))
         return frm2, tto2
 
-    def piece_placement_map(self, fen):
+    def _fen_to_array(self, fen):
         piece_placement = np.full((8, 8, 12), 0)  # rank, col, piece kind
 
         placement = fen
@@ -89,7 +80,7 @@ class NN(object):
 
         return piece_placement
 
-    def learn(self, result, side_coef):
+    def learn(self, moves):
         filtered = True
         batch_len = len(self._learning_data)
         if not batch_len:
@@ -97,11 +88,10 @@ class NN(object):
             filtered = False
             batch_len = len(self._learning_data)
         inputs_pos = np.full((batch_len, 8 * 8 * 12), 0)
-        inputs_regul = np.full((batch_len, 2,), 0)
-        inputs = [inputs_pos, inputs_regul]
+        inputs = inputs_pos
 
         out_from = np.full((batch_len, 64,), 0)
-        out_to = np.full((batch_len, 64,), 0)
+        out_to = np.full((batch_len, 64,), 1)
         outputs = [out_from, out_to]
 
         batch_n = 0
@@ -117,9 +107,7 @@ class NN(object):
             if not rec['score'] and filtered:
                 continue
 
-            inputs_pos[batch_n] = self.piece_placement_map(rec['board']).flatten()
-            inputs_regul[batch_n][0] = rec['halfmove']
-            inputs_regul[batch_n][1] = rec['fullmove']
+            inputs_pos[batch_n] = self._fen_to_array(rec['board']).flatten()
 
             score = rec['score'] - prev_score
             ms = max(ms, score)
@@ -128,8 +116,8 @@ class NN(object):
             if abs(score) > 1.0:
                 score = np.sign(score)
 
-            out_from[batch_n][rec['move'].from_square] = score
-            out_to[batch_n][rec['move'].to_square] = score
+            out_from[batch_n][rec['move'].from_square] = 1
+            out_to[batch_n][rec['move'].to_square] = 0
             batch_n += 1
             prev_score = rec['score']
 
@@ -169,37 +157,3 @@ class NN(object):
         # logging.debug("Move of %s: %s %s", side_coef, prev['move'].san, score)
         prev['score'] = score
 
-    def _get_material_balance(self, board):
-        fen = board.board_fen()
-        chars = Counter(fen)
-        score = 0
-        for piece in PIECE_MOBILITY:
-            if piece in chars:
-                score += PIECE_MOBILITY[piece] * chars[piece]
-
-            if piece.lower() in chars:
-                score -= PIECE_MOBILITY[piece] * chars[piece.lower()]
-
-        return score
-
-    def _get_mobility(self, board):
-        """
-
-        :type board: chess.Board
-        """
-        score = 0
-        moves = list(board.generate_legal_moves())
-        for move in moves:
-            src_piece = board.piece_at(move.from_square)
-            if src_piece.piece_type == PAWN:
-                if src_piece.color == WHITE:
-                    score += 1 + 0.1 * (move.to_square // 8 - 8)
-                else:
-                    score += 1 + 0.1 * (8 - move.to_square // 8)
-            else:
-                score += 1
-
-            dest_piece = board.piece_at(move.to_square)
-            if dest_piece:  # attack bonus
-                score += PIECE_MOBILITY[dest_piece.symbol().upper()] / 2.0
-        return score

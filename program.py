@@ -1,12 +1,13 @@
 import logging
 import sys
 
-from chess import STARTING_FEN, Board, pgn
+from chess import STARTING_FEN, Board, pgn, WHITE, BLACK
 
+from nn import NN
 from player import Player
 
 
-def record_results(brd, rnd, eval1, eval2):
+def record_results(brd, rnd):
     journal = pgn.Game.from_board(brd)
     journal.headers.clear()
     journal.headers["White"] = "Lisa"
@@ -28,8 +29,8 @@ def record_results(brd, rnd, eval1, eval2):
 
     # exporter = pgn.StringExporter(headers=True, variations=True, comments=True)
     # logging.info("\n%s", journal.accept(exporter))
-    logging.info("Game #%d: %s by %s, %d moves, %.1f/%.1f", rnd, journal.headers["Result"], journal.end().comment,
-                 brd.fullmove_number, eval1, eval2)
+    logging.info("Game #%d: %s by %s, %d moves", rnd, journal.headers["Result"], journal.end().comment,
+                 brd.fullmove_number)
     with open("last.pgn", "w") as out:
         exporter = pgn.FileExporter(out)
         journal.accept(exporter)
@@ -41,19 +42,21 @@ def play_one_game(pwhite, pblack, rnd):
     pblack.board = board
 
     while pwhite.makes_move() and pblack.makes_move():  # and board.fullmove_number < 150
-        pass
+        logging.debug("%s. %s %s", board.fullmove_number - 1, board.move_stack[-1], board.move_stack[-2])
 
-    record_results(board, rnd, pwhite.learn(), pblack.learn())
+    record_results(board, rnd)
 
 
 if __name__ == "__main__":
     sys.setrecursionlimit(10000)
     logging.basicConfig(level=logging.DEBUG)
 
-    white = Player(0)
-    black = Player(1)
+    nn = NN("nn.hdf5")
+    white = Player(WHITE, nn)
+    black = Player(BLACK, nn)
 
     rnd = 1
     while True:
         play_one_game(white, black, rnd)
+        nn.learn(white.get_moves() + black.get_moves())
         rnd += 1

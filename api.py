@@ -3,6 +3,9 @@ from http.server import HTTPServer, SimpleHTTPRequestHandler
 from queue import Queue
 from threading import Thread
 
+from chess import WHITE, BLACK
+
+from nn import NN
 from player import Player
 from program import play_one_game
 
@@ -49,8 +52,8 @@ class ChessAPIHandler(SimpleHTTPRequestHandler):
 
 class PlayerAPI(Player):
 
-    def __init__(self, piece_index) -> None:
-        super().__init__(piece_index)
+    def __init__(self, color) -> None:
+        super().__init__(color, None)
         server_address = ('', 8090)
         self.httpd = HTTPServer(server_address, ChessAPIHandler)
         self.iqueue = Queue()
@@ -76,8 +79,8 @@ class PlayerAPI(Player):
 if __name__ == "__main__":
     logging.basicConfig(level=logging.DEBUG)
 
-    white = PlayerAPI(0)
-    black = Player(1)
+    white = PlayerAPI(WHITE)
+    black = Player(BLACK, NN("nn.hdf5"))
 
     cnt = 1
     while True:

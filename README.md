@@ -80,4 +80,8 @@ It's time to summarize what was done over past days:
 
 Decided to make sing NN that will be able to decide for both sides, using board and move flip for black.
 
-NN structure changed to 6-layers decreasing from 768 to 128 nodes.
+NN structure changed to 6-layers decreasing from 768 to 128 nodes. This increased number of trainable parameters 100x times. It went back to learn games with a lot of dumb moves.
+
+### 23 Feb, 2019
+
+I tend to change my mind back. Actually, my program is just "what is the best move from current position" solver. It has no tree search part (intentional!), and it's wrong for NN to learn moves as good just because they are part of winning game. The score of move is mere measure of if it has changed position in our favor. At first, I want to get NN that will not do stupid mistakes.

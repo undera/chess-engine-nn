@@ -42,7 +42,8 @@ def play_one_game(pwhite, pblack, rnd):
     pblack.board = board
 
     while pwhite.makes_move() and pblack.makes_move():  # and board.fullmove_number < 150
-        logging.debug("%s. %s %s", board.fullmove_number - 1, board.move_stack[-1], board.move_stack[-2])
+        # logging.debug("%s. %s %s", board.fullmove_number - 1, board.move_stack[-1], board.move_stack[-2])
+        pass
 
     record_results(board, rnd)
 
@@ -56,7 +57,22 @@ if __name__ == "__main__":
     black = Player(BLACK, nn)
 
     rnd = 1
+    useful_stack = []
     while True:
         play_one_game(white, black, rnd)
-        nn.learn(white.get_moves() + black.get_moves())
+
+        game_data = white.get_moves() + black.get_moves()
+        if game_data[0]["score"] != 0.5:
+            useful_stack.append(game_data)
+
+        data = []
+        if not useful_stack:
+            data.extend(game_data)
+        for item in useful_stack:
+            data.extend(item)
+
+
+        nn.learn(data, 1 if game_data[0]["score"] == 0.5 else 10)
+        nn.save("nn.hdf5")
+
         rnd += 1

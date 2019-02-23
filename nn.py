@@ -1,10 +1,10 @@
 import logging
 import os
-from collections import Counter
+from random import shuffle
 
 import numpy as np
-from chess import PAWN, WHITE
 from keras import layers, Model, models
+from keras.regularizers import l2
 from keras.utils import plot_model
 
 PIECE_MAP = "PpNnBbRrQqKk"
@@ -33,18 +33,24 @@ class NN(object):
     def _get_nn(self):
         positions = layers.Input(shape=(8 * 8 * 12,))  # 12 is len of PIECE_MAP
 
-        hidden = layers.Dense((8 * 8 * 10), activation="sigmoid")(positions)
-        hidden = layers.Dense((8 * 8 * 8), activation="sigmoid")(hidden)
-        hidden = layers.Dense((8 * 8 * 6), activation="sigmoid")(hidden)
-        hidden = layers.Dense((8 * 8 * 4), activation="sigmoid")(hidden)
-        hidden = layers.Dense((8 * 8 * 2), activation="sigmoid")(hidden)
+        reg = l2(0.01)
+        hidden = layers.Dense((8 * 8 * 6), activation="tanh", kernel_regularizer=reg)(positions)
+        hidden = layers.Dropout(0.05)(hidden)
+        hidden = layers.Dense((8 * 8 * 4), activation="tanh", kernel_regularizer=reg)(hidden)
+        out_evalb = layers.Dense(4, activation="tanh", name="evalb")(hidden)
+        hidden = layers.Dropout(0.05)(hidden)
+        hidden = layers.Dense((8 * 8 * 2), activation="tanh", kernel_regularizer=reg)(hidden)
+        hidden = layers.Dropout(0.05)(hidden)
+        hidden = layers.Dense((8 * 8 * 1), activation="relu", kernel_regularizer=reg)(hidden)
 
-        out_from = layers.Dense(64, activation="sigmoid")(hidden)
-        out_to = layers.Dense(64, activation="sigmoid")(hidden)
+        out_from = layers.Dense(64, activation="sigmoid", name="from")(hidden)
+        out_to = layers.Dense(64, activation="sigmoid", name="to")(hidden)
+        out_evala = layers.Dense(4, activation="tanh", name="evala")(hidden)
 
-        model = Model(inputs=[positions, ], outputs=[out_from, out_to])
-        model.compile(optimizer='nadam',
-                      loss='mse',
+        model = Model(inputs=[positions, ], outputs=[out_from, out_to, out_evalb, out_evala])
+        model.compile(optimizer='adam',
+                      loss=['binary_crossentropy', 'binary_crossentropy', 'mse', 'mse'],
+                      loss_weights=[1.0, 1.0, 1.0, 1.0],
                       metrics=['accuracy'])
         plot_model(model, to_file='model.png', show_shapes=True)
         return model
@@ -80,80 +86,62 @@ class NN(object):
 
         return piece_placement
 
-    def learn(self, moves):
-        filtered = True
-        batch_len = len(self._learning_data)
-        if not batch_len:
-            logging.warning("No changes to learn from!")
-            filtered = False
-            batch_len = len(self._learning_data)
+    def learn(self, data, epochs):
+        shuffle(data)
+        batch_len = len(data)
         inputs_pos = np.full((batch_len, 8 * 8 * 12), 0)
         inputs = inputs_pos
 
         out_from = np.full((batch_len, 64,), 0)
-        out_to = np.full((batch_len, 64,), 1)
-        outputs = [out_from, out_to]
+        out_to = np.full((batch_len, 64,), 0)
+        out_evalb = np.full((batch_len, 4,), 0)
+        out_evala = np.full((batch_len, 4,), 0)
+        outputs = [out_from, out_to, out_evalb, out_evala]
 
         batch_n = 0
-        ms = 0
-        ns = 0
-        prev_score = 0
-        while self._learning_data:
-            rec = self._learning_data.pop(0)
-            if not self._learning_data and not rec['score'] and result:
-                rec['score'] = result
-                prev_score = 0
+        while data:
+            rec = data.pop(0)
 
-            if not rec['score'] and filtered:
-                continue
+            inputs_pos[batch_n] = self._fen_to_array(rec['fen']).flatten()
 
-            inputs_pos[batch_n] = self._fen_to_array(rec['board']).flatten()
+            score = self._get_score(rec["before"], rec["after"])
 
-            score = rec['score'] - prev_score
-            ms = max(ms, score)
-            ns = min(ns, score)
-            score = score / 8.0
-            if abs(score) > 1.0:
-                score = np.sign(score)
+            out_from[batch_n][rec['move'].from_square] = score * rec['score']
+            out_to[batch_n][rec['move'].to_square] = score * rec['score']
 
-            out_from[batch_n][rec['move'].from_square] = 1
-            out_to[batch_n][rec['move'].to_square] = 0
+            self._fill_eval(batch_n, out_evalb, rec['before'])
+            self._fill_eval(batch_n, out_evala, rec['after'])
+
             batch_n += 1
-            prev_score = rec['score']
 
-        res = self._model.fit(inputs, outputs, batch_size=batch_len, epochs=1, verbose=False)
+        res = self._model.fit(inputs, outputs, epochs=epochs, verbose=2)
         # logging.debug("Trained: %s", [res.history[key] for key in res.history if key.endswith("_acc")])
         # logging.debug("Trained: %s", res.history['loss'])
         # logging.debug("Scores: %.1f/%.1f", ns, ms)
-        return prev_score
 
-    def record_for_learning(self, board, selected_move):
-        halfmove_score = board.halfmove_clock / 100.0
-        self._learning_data.append({
-            'board': board.board_fen(),
-            'move': selected_move,
-            'halfmove': halfmove_score,
-            'fullmove': board.fullmove_number,
-            'score': 0,
-            'material': 0,
-            'mobility': 0,
-        })
+    def _fill_eval(self, batch_n, out_evalb, rec):
+        material, mobility, attacks, threats = rec
+        out_evalb[batch_n][0] = material
+        out_evalb[batch_n][1] = mobility
+        out_evalb[batch_n][2] = attacks
+        out_evalb[batch_n][3] = threats
 
-    def after_our_move(self, board):
-        self._opps_mobility = self._get_mobility(board)
+    def _get_score(self, before, after):
+        if after[0] > before[0]:
+            return 1
+        elif after[0] < before[0]:
+            return 0
 
-    def after_their_move(self, board, side_coef):
-        """
-        :type board: chess.Board
-        """
-        if not self._learning_data:  # first move
-            return
+        att_balance_b = before[2] - before[3]
+        att_balance_a = after[2] - after[3]
+        if att_balance_a > att_balance_b:
+            return 0.75
+        elif att_balance_a < att_balance_b:
+            return 0
 
-        prev = self._learning_data[-1]
-        prev['material'] = self._get_material_balance(board)
-        our_mobility = self._get_mobility(board)
-        prev['mobility'] = our_mobility - self._opps_mobility
-        score = prev['mobility'] / 10.0 + side_coef * prev['material']
-        # logging.debug("Move of %s: %s %s", side_coef, prev['move'].san, score)
-        prev['score'] = score
+        if after[1] > before[1]:
+            return 0.5
+        elif after[1] < before[1]:
+            return 0
 
+        return 0

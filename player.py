@@ -1,8 +1,8 @@
-import logging
-import numpy as np
 from collections import Counter
+from random import shuffle
 
 import chess
+import numpy as np
 
 from nn import NN, PIECE_MOBILITY
 
@@ -16,26 +16,47 @@ class Player(object):
         self.color = color
         self.board = None
         self.nn = nn
-        self.moves_log = []
+        self._moves_log = []
 
     def makes_move(self):
-        move = self._choose_best_move()
-        self._add_to_log(move)
+        move, fen = self._choose_best_move()
+        move_rec = self._mirror_move(move) if self.color == chess.BLACK else move
+
+        before = self._get_evals(fen)
+
         self.board.push(move)
+        self.board.turn = not self.board.turn
+        after = self._get_evals(fen)
+        self.board.turn = not self.board.turn
+
+        log_rec = {"move": move_rec, "fen": fen, "before": before, "after": after}
+        #logging.debug("%d. %s %s %s", self.board.fullmove_number, move, log_rec["before"], log_rec["after"])
+        self._moves_log.append(log_rec)
+
         not_over = move and not self.board.is_game_over(claim_draw=True)
         return not_over
 
+    def _get_evals(self, fen):
+        evals = [self._get_material_balance(fen), self._get_mobility(), self._get_attacks()]
+        self.board.turn = not self.board.turn
+        evals.append(self._get_attacks())
+        self.board.turn = not self.board.turn
+        return evals
+
     def _choose_best_move(self):
-        weights_from, weights_to = self.nn.query(self.board.board_fen())
+        fen = self.board.board_fen() if self.color == chess.WHITE else self.board.mirror().board_fen()
+        weights_from, weights_to = self.nn.query(fen)
         if self.color == chess.BLACK:
             weights_from = np.flipud(weights_from)
             weights_to = np.flipud(weights_to)
 
         move_rating = self._gen_move_rating(weights_from, weights_to)
-        move_rating.sort(key=lambda x: x[2], reverse=False)
+        move_rating.sort(key=lambda x: x[2], reverse=True)
         move_rating.sort(key=lambda x: x[1], reverse=True)
 
         selected_move = move_rating[0][0] if move_rating else chess.Move.null()
+        if self.board.fullmove_number <= 1 and self.board.turn == chess.WHITE:
+            shuffle(move_rating)
         for move, sw, dw in move_rating:
             self.board.push(move)
             try:
@@ -46,7 +67,7 @@ class Player(object):
 
             selected_move = move
             break
-        return selected_move
+        return selected_move, fen
 
     def _gen_move_rating(self, weights_from, weights_to):
         move_rating = []
@@ -65,19 +86,18 @@ class Player(object):
     def get_moves(self):
         result = self.board.result(claim_draw=True)
         if result == '1-0':
-            score = -1 if self.color else 1
+            score = 1
         elif result == '0-1':
-            score = 1 if self.color else -1
-        else:
             score = 0
-
-        return [x + (score,) for x in self.moves_log]
-
-    def _add_to_log(self, move):
-        if self.color == chess.WHITE:
-            self.moves_log.append((self.board.board_fen(), move))
         else:
-            self.moves_log.append((self.board.mirror().board_fen(), self._mirror_move(move)))
+            score = 0.5
+
+        res = []
+        for x in self._moves_log:
+            x.update({"score": score})
+            res.append(x)
+        self._moves_log.clear()
+        return res
 
     def _mirror_move(self, move):
         """
@@ -98,8 +118,7 @@ class Player(object):
                               move.promotion, move.drop)
         return new_move
 
-    def _get_material_balance(self, board):
-        fen = board.board_fen()
+    def _get_material_balance(self, fen):
         chars = Counter(fen)
         score = 0
         for piece in PIECE_MOBILITY:
@@ -111,24 +130,16 @@ class Player(object):
 
         return score
 
-    def _get_mobility(self, board):
-        """
+    def _get_mobility(self):
+        moves = list(self.board.generate_legal_moves())
+        mobility = len(moves)
+        return mobility
 
-        :type board: chess.Board
-        """
-        score = 0
-        moves = list(board.generate_legal_moves())
+    def _get_attacks(self):
+        attacks = 0
+        moves = list(self.board.generate_legal_moves())
         for move in moves:
-            src_piece = board.piece_at(move.from_square)
-            if src_piece.piece_type == chess.PAWN:
-                if src_piece.color == chess.WHITE:
-                    score += 1 + 0.1 * (move.to_square // 8 - 8)
-                else:
-                    score += 1 + 0.1 * (8 - move.to_square // 8)
-            else:
-                score += 1
-
-            dest_piece = board.piece_at(move.to_square)
-            if dest_piece:  # attack bonus
-                score += PIECE_MOBILITY[dest_piece.symbol().upper()] / 2.0
-        return score
+            dest_piece = self.board.piece_at(move.to_square)
+            if dest_piece:
+                attacks += PIECE_MOBILITY[dest_piece.symbol().upper()]
+        return attacks

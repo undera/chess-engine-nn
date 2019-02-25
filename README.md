@@ -85,3 +85,11 @@ NN structure changed to 6-layers decreasing from 768 to 128 nodes. This increase
 ### 23 Feb, 2019
 
 I tend to change my mind back. Actually, my program is just "what is the best move from current position" solver. It has no tree search part (intentional!), and it's wrong for NN to learn moves as good just because they are part of winning game. The score of move is mere measure of if it has changed position in our favor. At first, I want to get NN that will not do stupid mistakes.
+
+### 24 Feb, 2019
+
+Life of developer: was debugging code to understand why my accuracy metric of NN move quickly reaches 1.0 and stayes there. Found that I used wrong data type for numpy array, it was rounding my floats into ints. :facepalm:
+
+### 25 Feb, 2019
+
+Still nothing leads to learning good moves. Experimenting with various scores for moves. Cyclic moves demonstrate lack of depth. I revised the criteria for good move, made NN deeper and made it to learn by batches of 10 games. Let's see...

@@ -1,3 +1,4 @@
+import logging
 from collections import Counter
 from random import shuffle
 
@@ -20,17 +21,22 @@ class Player(object):
 
     def makes_move(self):
         move, fen = self._choose_best_move()
+        #move = Move(4, 12)
         move_rec = self._mirror_move(move) if self.color == chess.BLACK else move
 
         before = self._get_evals(fen)
 
         self.board.push(move)
+
         self.board.turn = not self.board.turn
-        after = self._get_evals(fen)
+        after = self._get_evals(self.board.board_fen())
         self.board.turn = not self.board.turn
 
-        log_rec = {"move": move_rec, "fen": fen, "before": before, "after": after}
-        #logging.debug("%d. %s %s %s", self.board.fullmove_number, move, log_rec["before"], log_rec["after"])
+        log_rec = {"move": move_rec, "fen": fen,
+                   "before": before, "after": after,
+                   "score": self._get_score(before, after, move)}
+
+        #logging.debug("%d. %s %s", self.board.fullmove_number, move, log_rec["score"])
         self._moves_log.append(log_rec)
 
         not_over = move and not self.board.is_game_over(claim_draw=True)
@@ -86,18 +92,46 @@ class Player(object):
     def get_moves(self):
         result = self.board.result(claim_draw=True)
         if result == '1-0':
-            score = 1
+            result = 1
         elif result == '0-1':
-            score = 0
+            result = 0
         else:
-            score = 0.5
+            result = 0.5
 
         res = []
         for x in self._moves_log:
-            x.update({"score": score})
+            x.update({"result": result})
             res.append(x)
         self._moves_log.clear()
         return res
+
+    def _get_score(self, before, after, move):
+        # threats
+        if after[3] < before[3]:
+            return 1.0
+        elif after[3] > before[3]:
+            return 0.0
+
+        # attacks
+        if after[2] > before[2]:
+            return 0.75
+        elif after[2] < before[2]:
+            return 0.0
+
+        # mobility
+        if after[1] > before[1]:
+            return 0.5
+        elif after[1] < before[1]:
+            return 0.0
+
+        # material
+        if after[0] > before[0]:
+            return 1.0
+
+        if self.board.piece_at(move.to_square) == chess.PAWN:
+            return 0.1
+
+        return 0.0
 
     def _mirror_move(self, move):
         """

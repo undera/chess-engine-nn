@@ -17,11 +17,10 @@ class Player(object):
         self.color = color
         self.board = None
         self.nn = nn
-        self._moves_log = []
+        self.moves_log = []
 
     def makes_move(self):
         move, fen = self._choose_best_move()
-        #move = Move(4, 12)
         move_rec = self._mirror_move(move) if self.color == chess.BLACK else move
 
         before = self._get_evals(fen)
@@ -36,10 +35,11 @@ class Player(object):
                    "before": before, "after": after,
                    "score": self._get_score(before, after, move)}
 
-        #logging.debug("%d. %s %s", self.board.fullmove_number, move, log_rec["score"])
-        self._moves_log.append(log_rec)
+        # logging.debug("%d. %s %s", self.board.fullmove_number, move, log_rec["score"])
+        self.moves_log.append(log_rec)
+        self.board.comment_stack.append(log_rec["score"])
 
-        not_over = move and not self.board.is_game_over(claim_draw=True)
+        not_over = move and not self.board.is_game_over(claim_draw=False)
         return not_over
 
     def _get_evals(self, fen):
@@ -99,10 +99,10 @@ class Player(object):
             result = 0.5
 
         res = []
-        for x in self._moves_log:
+        for x in self.moves_log:
             x.update({"result": result})
             res.append(x)
-        self._moves_log.clear()
+        self.moves_log.clear()
         return res
 
     def _get_score(self, before, after, move):

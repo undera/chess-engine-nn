@@ -30,19 +30,19 @@ class NN(object):
         self._model.save(filename, overwrite=True)
 
     def _get_nn(self):
-        positions = layers.Input(shape=(8 * 8 * 12,))  # 12 is len of PIECE_MAP
+        positions = layers.Input(shape=(8 * 8 * 12,), name="positions")  # 12 is len of PIECE_MAP
 
         reg = None
-        activ_hidden = "relu"
-        hidden = layers.Dense((8 * 8 * 10), activation=activ_hidden, kernel_regularizer=reg)(positions)
-        hidden = layers.Dense((8 * 8 * 8), activation=activ_hidden, kernel_regularizer=reg)(hidden)
-        hidden = layers.Dense((8 * 8 * 6), activation=activ_hidden, kernel_regularizer=reg)(hidden)
-        hidden = layers.Dense((8 * 8 * 4), activation=activ_hidden, kernel_regularizer=reg)(hidden)
-        hidden = layers.Dense((8 * 8 * 2), activation=activ_hidden, kernel_regularizer=reg)(hidden)
-        hidden = layers.Dense((8 * 8 * 1), activation=activ_hidden, kernel_regularizer=reg)(hidden)
+        activ_hidden = "sigmoid"
+        kernel = 8 * 8
+        hidden = layers.Dense((kernel * 10), activation=activ_hidden, kernel_regularizer=reg)(positions)
+        hidden = layers.Dense((kernel * 8), activation=activ_hidden, kernel_regularizer=reg)(hidden)
+        hidden = layers.Dense((kernel * 6), activation=activ_hidden, kernel_regularizer=reg)(hidden)
+        hidden = layers.Dense((kernel * 4), activation=activ_hidden, kernel_regularizer=reg)(hidden)
+        hidden = layers.Dense((kernel * 2), activation=activ_hidden, kernel_regularizer=reg)(hidden)
 
-        out_from = layers.Dense(64, activation="softmax", name="from")(hidden)
-        out_to = layers.Dense(64, activation="softmax", name="to")(hidden)
+        out_from = layers.Dense(64, activation="sigmoid", name="from")(hidden)
+        out_to = layers.Dense(64, activation="sigmoid", name="to")(hidden)
 
         model = Model(inputs=[positions, ], outputs=[out_from, out_to])
         model.compile(optimizer='adam',
@@ -97,7 +97,7 @@ class NN(object):
             inputs_pos[batch_n] = self._fen_to_array(rec['fen']).flatten()
 
             score = rec['score']
-            if not score:
+            if not score or not rec['result']:
                 continue
 
             out_from[batch_n][rec['move'].from_square] = score * rec['result']

@@ -8,7 +8,27 @@ from nn import NN
 from player import Player
 
 
-def record_results(brd, rnd):
+class MyStringExporter(pgn.StringExporter):
+
+    def __init__(self, comments):
+        super().__init__(headers=True, variations=True, comments=True)
+        self.comm_stack = comments
+
+    def visit_move(self, board, move):
+        if self.variations or not self.variation_depth:
+            # Write the move number.
+            if board.turn == WHITE:
+                self.write_token(str(board.fullmove_number) + ". ")
+            elif self.force_movenumber:
+                self.write_token(str(board.fullmove_number) + "... ")
+
+            # Write the SAN.
+            self.write_token(board.san(move) + " {%s} " % self.comm_stack.pop(0))
+
+            self.force_movenumber = False
+
+
+def record_results(brd, rnd, avgs):
     journal = pgn.Game.from_board(brd)
     journal.headers.clear()
     journal.headers["White"] = "Lisa"
@@ -16,25 +36,26 @@ def record_results(brd, rnd):
     journal.headers["Round"] = rnd
     journal.headers["Result"] = brd.result(claim_draw=True)
     if brd.is_checkmate():
-        journal.end().comment = "checkmate"
+        comm = "checkmate"
     elif brd.can_claim_fifty_moves():
-        journal.end().comment = "50 moves claim"
+        comm = "50 moves"
     elif brd.can_claim_threefold_repetition():
-        journal.end().comment = "threefold claim"
+        comm = "threefold"
     elif brd.is_insufficient_material():
-        journal.end().comment = "insufficient material"
+        comm = "material"
     elif not any(brd.generate_legal_moves()):
-        journal.end().comment = "stalemate"
+        comm = "stalemate"
     else:
-        journal.end().comment = "by other reason"
+        comm = "by other reason"
+    journal.headers["Site"] = comm
 
-    # exporter = pgn.StringExporter(headers=True, variations=True, comments=True)
-    # logging.info("\n%s", journal.accept(exporter))
-    logging.info("Game #%d: %s by %s, %d moves", rnd, journal.headers["Result"], journal.end().comment,
-                 brd.fullmove_number)
+    exporter = MyStringExporter(brd.comment_stack)
+    pgns = journal.accept(exporter)
+    # logging.info("\n%s", pgns)
+    logging.info("Game #%d:\t%s by %s,\t%d moves,\t%.3f AMS", rnd, journal.headers["Result"], comm,
+                 brd.fullmove_number, avgs)
     with open("last.pgn", "w") as out:
-        exporter = pgn.FileExporter(out)
-        journal.accept(exporter)
+        out.write(pgns)
 
 
 class BoardOptim(Board):
@@ -42,22 +63,23 @@ class BoardOptim(Board):
     def __init__(self, fen=STARTING_FEN, *, chess960=False):
         super().__init__(fen, chess960=chess960)
         self._fens = []
+        self.comment_stack = []
 
-    def can_claim_threefold_repetition(self):
+    def can_claim_threefold_repetition1(self):
         # repetition = super().can_claim_threefold_repetition()
         # if repetition:
         cnt = Counter(self._fens)
         return cnt[self._fens[-1]] >= 3
 
-    def is_fivefold_repetition(self):
+    def is_fivefold_repetition1(self):
         cnt = Counter(self._fens)
         return cnt[self._fens[-1]] >= 5
 
-    def push(self, move):
+    def push1(self, move):
         super().push(move)
         self._fens.append(self.epd().replace(" w ", " . ").replace(" b ", " . "))
 
-    def pop(self):
+    def pop1(self):
         self._fens.pop(-1)
         return super().pop()
 
@@ -71,7 +93,9 @@ def play_one_game(pwhite, pblack, rnd):
         # logging.debug("%s. %s %s", board.fullmove_number - 1, board.move_stack[-1], board.move_stack[-2])
         pass
 
-    record_results(board, rnd)
+    all_moves = pwhite.moves_log + pblack.moves_log
+    avg_score = sum([x['score'] for x in all_moves]) / float(len(all_moves))
+    record_results(board, rnd, avg_score)
 
 
 if __name__ == "__main__":
@@ -92,7 +116,7 @@ if __name__ == "__main__":
         if game_data[0]["result"] != 0.5:
             useful_stack.append(game_data)
 
-        if not (rnd % 10):
+        if not (rnd % 20):
             data = []
             if not useful_stack:
                 data.extend(game_data)

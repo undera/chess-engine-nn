@@ -35,7 +35,7 @@ class Player(object):
 
         # logging.debug("%d. %s %s", self.board.fullmove_number, move, log_rec["score"])
         self.moves_log.append(log_rec)
-        self.board.comment_stack.append(log_rec.get_score())
+        self.board.comment_stack.append("%s %s %s" % (log_rec.get_score(), log_rec.before, log_rec.after))
 
         not_over = move and not self.board.is_game_over(claim_draw=False)
         return not_over

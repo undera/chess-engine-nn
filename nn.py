@@ -1,6 +1,6 @@
 import logging
+import math
 import os
-from random import shuffle
 
 import chess
 import numpy as np
@@ -37,16 +37,14 @@ class NN(object):
         activ_hidden = "sigmoid"
         kernel = 8 * 8
         hidden = layers.Dense((kernel * 1), activation=activ_hidden, kernel_regularizer=reg)(positions)
-        # hidden = layers.Dense((kernel * 8), activation=activ_hidden, kernel_regularizer=reg)(hidden)
-        # hidden = layers.Dense((kernel * 6), activation=activ_hidden, kernel_regularizer=reg)(hidden)
-        # hidden = layers.Dense((kernel * 4), activation=activ_hidden, kernel_regularizer=reg)(hidden)
+        hidden = layers.Dense((kernel * 1), activation=activ_hidden, kernel_regularizer=reg)(hidden)
         hidden = layers.Dense((kernel * 1), activation=activ_hidden, kernel_regularizer=reg)(hidden)
 
         out_from = layers.Dense(64, activation="softmax", name="from")(hidden)
         out_to = layers.Dense(64, activation="softmax", name="to")(hidden)
 
         model = Model(inputs=[positions, ], outputs=[out_from, out_to])
-        model.compile(optimizer='adam',
+        model.compile(optimizer='nadam',
                       loss=['categorical_crossentropy', 'categorical_crossentropy'],
                       loss_weights=[1.0, 1.0],
                       metrics=['categorical_accuracy']
@@ -94,11 +92,12 @@ class NN(object):
         for rec in data:
             inputs_pos[batch_n] = self._fen_to_array(rec.fen).flatten()
 
-            out_from[batch_n] = np.full((64,), 0.0 if rec.get_score() else 1.0)
-            out_to[batch_n] = np.full((64,), 0.0 if rec.get_score() else 1.0)
+            out_from[batch_n] = np.full((64,), 0.0)
+            out_to[batch_n] = np.full((64,), 0.0)
 
-            out_from[batch_n][rec.from_square] = rec.get_score()
-            out_to[batch_n][rec.to_square] = rec.get_score()
+            score = math.ceil(rec.get_score())
+            out_from[batch_n][rec.from_square] = score
+            out_to[batch_n][rec.to_square] = score
 
             # self._fill_eval(batch_n, out_evalb, rec['before'])
             # self._fill_eval(batch_n, out_evala, rec['after'])

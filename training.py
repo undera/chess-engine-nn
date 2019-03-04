@@ -124,9 +124,13 @@ if __name__ == "__main__":
         game_data = wmoves + bmoves
         dataset.update(game_data)
 
-        with open("moves.pkl", "wb") as fhd:
-            pickle.dump(list(dataset), fhd)
-
         if not (rnd % 20):
+            os.rename("moves.pkl", "moves.bak.pkl")
+            try:
+                with open("moves.pkl", "wb") as fhd:
+                    pickle.dump(list(dataset), fhd)
+            except:
+                os.rename("moves.bak.pkl", "moves.pkl")
+
             nn.learn(dataset, 10)
             nn.save("nn.hdf5")

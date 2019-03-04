@@ -5,7 +5,7 @@ from random import shuffle
 import chess
 import numpy as np
 
-from nn import NN, PIECE_MOBILITY
+from nn import NN, PIECE_MOBILITY, MoveRecord
 
 
 class Player(object):
@@ -30,14 +30,12 @@ class Player(object):
         self.board.turn = not self.board.turn
         after = self._get_evals(self.board.board_fen())
         self.board.turn = not self.board.turn
-
-        log_rec = {"move": move_rec, "fen": fen,
-                   "before": before, "after": after,
-                   "score": self._get_score(before, after, move)}
+        piece = self.board.piece_at(move.to_square)
+        log_rec = MoveRecord(fen=fen, move=move_rec, before=before, after=after, piece=piece)
 
         # logging.debug("%d. %s %s", self.board.fullmove_number, move, log_rec["score"])
         self.moves_log.append(log_rec)
-        self.board.comment_stack.append(log_rec["score"])
+        self.board.comment_stack.append(log_rec.get_score())
 
         not_over = move and not self.board.is_game_over(claim_draw=False)
         return not_over
@@ -100,38 +98,9 @@ class Player(object):
 
         res = []
         for x in self.moves_log:
-            x.update({"result": result})
             res.append(x)
         self.moves_log.clear()
         return res
-
-    def _get_score(self, before, after, move):
-        # threats
-        if after[3] < before[3]:
-            return 1.0
-        elif after[3] > before[3]:
-            return 0.0
-
-        # attacks
-        if after[2] > before[2]:
-            return 0.75
-        elif after[2] < before[2]:
-            return 0.0
-
-        # mobility
-        if after[1] > before[1]:
-            return 0.5
-        elif after[1] < before[1]:
-            return 0.0
-
-        # material
-        if after[0] > before[0]:
-            return 1.0
-
-        if self.board.piece_at(move.to_square) == chess.PAWN:
-            return 0.1
-
-        return 0.0
 
     def _mirror_move(self, move):
         """

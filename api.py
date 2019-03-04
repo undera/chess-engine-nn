@@ -7,7 +7,7 @@ from chess import WHITE, BLACK
 
 from nn import NN
 from player import Player
-from program import play_one_game
+from training import play_one_game
 
 
 class PlayerCLI(Player):

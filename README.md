@@ -93,3 +93,9 @@ Life of developer: was debugging code to understand why my accuracy metric of NN
 ### 25 Feb, 2019
 
 Still nothing leads to learning good moves. Experimenting with various scores for moves. Cyclic moves demonstrate lack of depth. I revised the criteria for good move, made NN deeper and made it to learn by batches of 10 games. Let's see...
+
+### 4 Mar, 2019
+
+ Thinking of crystallizing "just next move predictor NN" more. For that, I'll save dataset of all moves generated through learning, and will always learn from this big set. Previous results from multilayer NN were worse than 2-layer, will get back to 2-layer for now.
+ 
+ I feel the trick to teach this variant of NN is to find correct board state representation, so NN will naturally learn.

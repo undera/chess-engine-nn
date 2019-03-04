@@ -1,4 +1,7 @@
+import json
 import logging
+import os
+import pickle
 import sys
 from collections import Counter
 
@@ -94,7 +97,7 @@ def play_one_game(pwhite, pblack, rnd):
         pass
 
     all_moves = pwhite.moves_log + pblack.moves_log
-    avg_score = sum([x['score'] for x in all_moves]) / float(len(all_moves))
+    avg_score = sum([x.get_score() for x in all_moves]) / float(len(all_moves))
     record_results(board, rnd, avg_score)
 
 
@@ -106,22 +109,24 @@ if __name__ == "__main__":
     white = Player(WHITE, nn)
     black = Player(BLACK, nn)
 
+    dataset = set()
+    if os.path.exists("moves.pkl"):
+        with open("moves.pkl", 'rb') as fhd:
+            dataset.update(pickle.load(fhd))
+
     rnd = 0
-    useful_stack = []
     while True:
         rnd += 1
         play_one_game(white, black, rnd)
 
-        game_data = white.get_moves() + black.get_moves()
-        if game_data[0]["result"] != 0.5:
-            useful_stack.append(game_data)
+        wmoves = white.get_moves()
+        bmoves = black.get_moves()
+        game_data = wmoves + bmoves
+        dataset.update(game_data)
+
+        with open("moves.pkl", "wb") as fhd:
+            pickle.dump(list(dataset), fhd)
 
         if not (rnd % 20):
-            data = []
-            if not useful_stack:
-                data.extend(game_data)
-            for item in useful_stack:
-                data.extend(item)
-
-            nn.learn(data, 10 if game_data[0]["result"] == 0.5 else 10)
+            nn.learn(dataset, 10)
             nn.save("nn.hdf5")

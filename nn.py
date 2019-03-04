@@ -2,6 +2,7 @@ import logging
 import os
 from random import shuffle
 
+import chess
 import numpy as np
 from keras import layers, Model, models
 from keras.utils import plot_model
@@ -35,14 +36,14 @@ class NN(object):
         reg = None
         activ_hidden = "sigmoid"
         kernel = 8 * 8
-        hidden = layers.Dense((kernel * 10), activation=activ_hidden, kernel_regularizer=reg)(positions)
-        hidden = layers.Dense((kernel * 8), activation=activ_hidden, kernel_regularizer=reg)(hidden)
-        hidden = layers.Dense((kernel * 6), activation=activ_hidden, kernel_regularizer=reg)(hidden)
-        hidden = layers.Dense((kernel * 4), activation=activ_hidden, kernel_regularizer=reg)(hidden)
-        hidden = layers.Dense((kernel * 2), activation=activ_hidden, kernel_regularizer=reg)(hidden)
+        hidden = layers.Dense((kernel * 1), activation=activ_hidden, kernel_regularizer=reg)(positions)
+        # hidden = layers.Dense((kernel * 8), activation=activ_hidden, kernel_regularizer=reg)(hidden)
+        # hidden = layers.Dense((kernel * 6), activation=activ_hidden, kernel_regularizer=reg)(hidden)
+        # hidden = layers.Dense((kernel * 4), activation=activ_hidden, kernel_regularizer=reg)(hidden)
+        hidden = layers.Dense((kernel * 1), activation=activ_hidden, kernel_regularizer=reg)(hidden)
 
-        out_from = layers.Dense(64, activation="sigmoid", name="from")(hidden)
-        out_to = layers.Dense(64, activation="sigmoid", name="to")(hidden)
+        out_from = layers.Dense(64, activation="softmax", name="from")(hidden)
+        out_to = layers.Dense(64, activation="softmax", name="to")(hidden)
 
         model = Model(inputs=[positions, ], outputs=[out_from, out_to])
         model.compile(optimizer='adam',
@@ -81,7 +82,6 @@ class NN(object):
         return piece_placement
 
     def learn(self, data, epochs):
-        shuffle(data)
         batch_len = len(data)
         inputs_pos = np.full((batch_len, 8 * 8 * 12), 0)
         inputs = inputs_pos
@@ -91,24 +91,22 @@ class NN(object):
         outputs = [out_from, out_to]
 
         batch_n = 0
-        while data:
-            rec = data.pop(0)
+        for rec in data:
+            inputs_pos[batch_n] = self._fen_to_array(rec.fen).flatten()
 
-            inputs_pos[batch_n] = self._fen_to_array(rec['fen']).flatten()
+            out_from[batch_n] = np.full((64,), 0.0 if rec.get_score() else 1.0)
+            out_to[batch_n] = np.full((64,), 0.0 if rec.get_score() else 1.0)
 
-            score = rec['score']
-            if not score or not rec['result']:
-                continue
-
-            out_from[batch_n][rec['move'].from_square] = score * rec['result']
-            out_to[batch_n][rec['move'].to_square] = score * rec['result']
+            out_from[batch_n][rec.from_square] = rec.get_score()
+            out_to[batch_n][rec.to_square] = rec.get_score()
 
             # self._fill_eval(batch_n, out_evalb, rec['before'])
             # self._fill_eval(batch_n, out_evala, rec['after'])
 
             batch_n += 1
 
-        res = self._model.fit(inputs, outputs, epochs=epochs, batch_size=128, verbose=2)
+        res = self._model.fit(inputs, outputs, validation_split=0.05, shuffle=True,
+                              epochs=epochs, batch_size=128, verbose=2)
         # logging.debug("Trained: %s", res.history)
         # logging.debug("Trained: %s", res.history['loss'])
         # logging.debug("Scores: %.1f/%.1f", ns, ms)
@@ -119,3 +117,43 @@ class NN(object):
         out_evalb[batch_n][1] = mobility
         out_evalb[batch_n][2] = attacks
         out_evalb[batch_n][3] = threats
+
+
+class MoveRecord(object):
+
+    def __init__(self, fen=None, move=None, before=None, after=None, piece=None) -> None:
+        super().__init__()
+        self.fen = fen
+        self.piece = piece
+        self.to_square = move.to_square
+        self.from_square = move.from_square
+        self.before = before
+        self.after = after
+
+    def get_score(self):
+        # threats
+        if self.after[3] < self.before[3]:
+            return 1.0
+        elif self.after[3] > self.before[3]:
+            return 0.0
+
+        # attacks
+        if self.after[2] > self.before[2]:
+            return 0.75
+        elif self.after[2] < self.before[2]:
+            return 0.0
+
+        # mobility
+        if self.after[1] > self.before[1]:
+            return 0.5
+        elif self.after[1] < self.before[1]:
+            return 0.0
+
+        # material
+        if self.after[0] > self.before[0]:
+            return 1.0
+
+        if self.piece == chess.PAWN:
+            return 0.1
+
+        return 0.0

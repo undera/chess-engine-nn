@@ -1,4 +1,3 @@
-import logging
 from collections import Counter
 from random import shuffle
 
@@ -23,7 +22,7 @@ class Player(object):
         move, fen = self._choose_best_move()
         move_rec = self._mirror_move(move) if self.color == chess.BLACK else move
 
-        before = self._get_evals(fen)
+        before = self._get_evals(self.board.board_fen())
 
         self.board.push(move)
 
@@ -31,11 +30,16 @@ class Player(object):
         after = self._get_evals(self.board.board_fen())
         self.board.turn = not self.board.turn
         piece = self.board.piece_at(move.to_square)
-        log_rec = MoveRecord(fen=fen, move=move_rec, before=before, after=after, piece=piece)
+        balance = np.subtract(after, before)
+        log_rec = MoveRecord(fen=fen, move=move_rec, kpis=balance, piece=piece)
 
         # logging.debug("%d. %s %s", self.board.fullmove_number, move, log_rec["score"])
         self.moves_log.append(log_rec)
-        self.board.comment_stack.append("%s %s %s" % (log_rec.get_score(), log_rec.before, log_rec.after))
+        self.board.comment_stack.append("%s %s" % (log_rec.get_score(), balance))
+
+        # if balance[0] != 0:
+        #    self.board.write_pgn('last.pgn')
+        #    print(self.board.turn)
 
         not_over = move and not self.board.is_game_over(claim_draw=False)
         return not_over
@@ -131,7 +135,10 @@ class Player(object):
             if piece.lower() in chars:
                 score -= PIECE_MOBILITY[piece] * chars[piece.lower()]
 
-        return score
+        if self.board.turn == chess.WHITE:
+            return score
+        else:
+            return -score
 
     def _get_mobility(self):
         moves = list(self.board.generate_legal_moves())

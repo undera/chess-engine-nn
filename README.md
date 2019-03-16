@@ -99,3 +99,11 @@ Still nothing leads to learning good moves. Experimenting with various scores fo
  Thinking of crystallizing "just next move predictor NN" more. For that, I'll save dataset of all moves generated through learning, and will always learn from this big set. Previous results from multilayer NN were worse than 2-layer, will get back to 2-layer for now.
  
  I feel the trick to teach this variant of NN is to find correct board state representation, so NN will naturally learn.
+
+### 13 Mar, 2019
+
+I made many experiments yesterday, trying to figure out why NN still suggests dumb moves. One good thing I found is that feeding only good moves into learning process improves the NN accuracy in training, which actually makes sense. Still, the accuracy of "move from" output of NN is much better than "move to". In fact, we need "move to" as most valuable output.
+
+### 16 Mar, 2019
+
+Found that moves in training dataset were not unique. God knows how that was affecting learning process for NN... Also found out that material balance score were inverted for black, also affecting NN training scores. Good to find this, it gives me hope that it is possible to build NN like I want.

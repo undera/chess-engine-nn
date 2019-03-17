@@ -5,8 +5,8 @@ from threading import Thread
 
 from chess import WHITE, BLACK
 
-from nn import NN
-from player import Player
+from chessnn.nn import NN
+from chessnn.player import Player
 from training import play_one_game
 
 

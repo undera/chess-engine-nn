@@ -5,7 +5,6 @@ import time
 from collections import Counter
 from typing import List
 
-import chess
 import numpy as np
 from keras import layers, Model, models
 from keras.callbacks import TensorBoard
@@ -13,14 +12,6 @@ from keras.regularizers import l2
 from keras.utils import plot_model
 
 PIECE_MAP = "PpNnBbRrQqKk"
-PIECE_MOBILITY = {
-    "P": 1,
-    "N": 3,
-    "B": 4,
-    "R": 6,
-    "Q": 10,
-    "K": 100,
-}
 
 
 class NN(object):
@@ -126,7 +117,7 @@ class NN(object):
                               validation_split=0.1, shuffle=True,
                               callbacks=[TensorBoard('/tmp/tensorboard/%d' % time.time())], verbose=0,
                               epochs=epochs, batch_size=128, )
-        # logging.debug("Trained: %s", res.history)
+        logging.debug("Trained: %s", res.history)
 
     def _fill_eval(self, batch_n, out_evalb, rec):
         material, mobility, attacks, threats = rec
@@ -134,65 +125,3 @@ class NN(object):
         out_evalb[batch_n][1] = mobility
         out_evalb[batch_n][2] = attacks
         out_evalb[batch_n][3] = threats
-
-
-class MoveRecord(object):
-    piece: chess.Piece
-
-    def __init__(self, fen=None, move=None, kpis=None, piece=None) -> None:
-        super().__init__()
-        self.fen = fen
-        self.piece = piece
-        self.to_square = move.to_square
-        self.from_square = move.from_square
-        self.kpis = kpis
-
-    def __hash__(self):
-        return sum([hash(x) for x in (self.fen, self.to_square, self.from_square, self.piece)])
-
-    def __eq__(self, o) -> bool:
-        """
-        :type o: MoveRecord
-        """
-        return self.fen == o.fen and self.from_square == o.from_square and self.to_square == o.to_square
-
-    def __ne__(self, o) -> bool:
-        """
-        :type o: MoveRecord
-        """
-        raise ValueError()
-
-    def get_score(self):
-        # first criteria
-        if self.kpis[0] < 0:  # material loss
-            return 0.0
-
-        if self.kpis[3] > 0:  # threats up
-            return 0.0
-
-        # second criteria
-        if self.kpis[0] > 0:  # material up
-            return 1.0
-
-        if self.kpis[3] < 0:  # threats down
-            return 1.0
-
-        # third criteria
-        if self.kpis[2] > 0:  # attack more
-            return 0.75
-
-        if self.kpis[2] < 0:  # attack less
-            return 0.0
-
-        # fourth criteria
-        if self.kpis[1] > 0:  # mobility up
-            return 0.5
-
-        if self.kpis[1] < 0:  # mobility down
-            return 0.0
-
-        # fifth criteria
-        if self.piece == chess.PAWN:
-            return 0.1
-
-        return 0.0

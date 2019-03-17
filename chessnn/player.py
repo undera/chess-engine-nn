@@ -4,7 +4,8 @@ from random import shuffle
 import chess
 import numpy as np
 
-from nn import NN, PIECE_MOBILITY, MoveRecord
+from chessnn import PIECE_MOBILITY, MoveRecord
+from chessnn.nn import NN
 
 
 class Player(object):

@@ -1,91 +1,13 @@
-import copy
 import logging
 import os
 import pickle
 import sys
-from collections import Counter
 
-from chess import STARTING_FEN, Board, pgn, WHITE, BLACK
+from chess import STARTING_FEN, WHITE, BLACK
 
-from nn import NN
-from player import Player
-
-
-class MyStringExporter(pgn.StringExporter):
-
-    def __init__(self, comments):
-        super().__init__(headers=True, variations=True, comments=True)
-        self.comm_stack = copy.copy(comments)
-
-    def visit_move(self, board, move):
-        if self.variations or not self.variation_depth:
-            # Write the move number.
-            if board.turn == WHITE:
-                self.write_token(str(board.fullmove_number) + ". ")
-            elif self.force_movenumber:
-                self.write_token(str(board.fullmove_number) + "... ")
-
-            # Write the SAN.
-            self.write_token(board.san(move) + " {%s} " % self.comm_stack.pop(0))
-
-            self.force_movenumber = False
-
-
-class BoardOptim(Board):
-
-    def __init__(self, fen=STARTING_FEN, *, chess960=False):
-        super().__init__(fen, chess960=chess960)
-        self._fens = []
-        self.comment_stack = []
-
-    def write_pgn(self, fname, roundd):
-        journal = pgn.Game.from_board(self)
-        journal.headers.clear()
-        journal.headers["White"] = "Lisa"
-        journal.headers["Black"] = "Karen"
-        journal.headers["Round"] = roundd
-        journal.headers["Result"] = self.result(claim_draw=True)
-        journal.headers["Site"] = self.explain()
-        exporter = MyStringExporter(self.comment_stack)
-        pgns = journal.accept(exporter)
-        with open(fname, "w") as out:
-            out.write(pgns)
-
-    def explain(self):
-        if self.is_checkmate():
-            comm = "checkmate"
-        elif self.can_claim_fifty_moves():
-            comm = "50 moves"
-        elif self.can_claim_threefold_repetition():
-            comm = "threefold"
-        elif self.is_insufficient_material():
-            comm = "material"
-        elif not any(self.generate_legal_moves()):
-            comm = "stalemate"
-        else:
-            comm = "by other reason"
-        return comm
-
-    def can_claim_threefold_repetition1(self):
-        # repetition = super().can_claim_threefold_repetition()
-        # if repetition:
-        cnt = Counter(self._fens)
-        return cnt[self._fens[-1]] >= 3
-
-    def is_fivefold_repetition1(self):
-        cnt = Counter(self._fens)
-        return cnt[self._fens[-1]] >= 5
-
-    def can_claim_draw1(self):
-        return super().can_claim_draw() or self.fullmove_number > 100
-
-    def push1(self, move):
-        super().push(move)
-        self._fens.append(self.epd().replace(" w ", " . ").replace(" b ", " . "))
-
-    def pop1(self):
-        self._fens.pop(-1)
-        return super().pop()
+from chessnn import BoardOptim
+from chessnn.nn import NN
+from chessnn.player import Player
 
 
 def play_one_game(pwhite, pblack, rnd):
@@ -145,6 +67,6 @@ if __name__ == "__main__":
             except:
                 os.rename("moves.bak.pkl", "moves.pkl")
 
-            #break
+            # break
             nn.learn(dataset, 20)
             # nn.save("nn.hdf5")

@@ -101,6 +101,7 @@ class MoveRecord(object):
         self.to_square = move.to_square
         self.from_square = move.from_square
         self.kpis = kpis
+        # TODO: add defences to KPIs
 
     def __hash__(self):
         return sum([hash(x) for x in (self.fen, self.to_square, self.from_square, self.piece)])

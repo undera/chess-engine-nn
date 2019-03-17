@@ -4,14 +4,12 @@ from random import shuffle
 import chess
 import numpy as np
 
-from chessnn import PIECE_MOBILITY, MoveRecord
+from chessnn import PIECE_MOBILITY, MoveRecord, BoardOptim
 from chessnn.nn import NN
 
 
 class Player(object):
-    """
-    :type board: training.BoardOptim
-    """
+    board: BoardOptim
     nn: NN
 
     def __init__(self, color, nn) -> None:
@@ -23,7 +21,7 @@ class Player(object):
 
     def makes_move(self):
         fen = self.board.board_fen() if self.color == chess.WHITE else self.board.mirror().board_fen()
-        move, fen = self._choose_best_move(fen)
+        move = self._choose_best_move(fen)
         move_rec = self._mirror_move(move) if self.color == chess.BLACK else move
 
         before = self._get_evals(self.board.board_fen())

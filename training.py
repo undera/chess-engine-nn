@@ -76,6 +76,9 @@ class BoardOptim(Board):
         cnt = Counter(self._fens)
         return cnt[self._fens[-1]] >= 5
 
+    def can_claim_draw1(self):
+        return super().can_claim_draw() or self.fullmove_number > 100
+
     def push1(self, move):
         super().push(move)
         self._fens.append(self.epd().replace(" w ", " . ").replace(" b ", " . "))
@@ -96,7 +99,7 @@ def play_one_game(pwhite, pblack, rnd):
         if not pblack.makes_move():
             break
 
-    board.write_pgn(os.path.join(os.path.dirname(__file__), "last.pgn"))
+    board.write_pgn(os.path.join(os.path.dirname(__file__), "last.pgn"), rnd)
 
     all_moves = pwhite.moves_log + pblack.moves_log
     avg_score = sum([x.get_score() for x in all_moves]) / float(len(all_moves))
@@ -118,6 +121,7 @@ if __name__ == "__main__":
             loaded = pickle.load(fhd)
             dataset.update(loaded)
             nn.learn(dataset, 50)
+            # nn.save("nn.hdf5")
 
     rnd = 0
     while True:
@@ -141,6 +145,6 @@ if __name__ == "__main__":
             except:
                 os.rename("moves.bak.pkl", "moves.pkl")
 
-            # break
-            nn.learn(dataset, 10)
-            nn.save("nn.hdf5")
+            #break
+            nn.learn(dataset, 20)
+            # nn.save("nn.hdf5")

@@ -1,15 +1,14 @@
 import logging
-import math
 import os
 import random
 import time
 from collections import Counter
+from typing import List
 
 import chess
 import numpy as np
 from keras import layers, Model, models
 from keras.callbacks import TensorBoard
-from keras.layers import concatenate
 from keras.regularizers import l2
 from keras.utils import plot_model
 
@@ -25,8 +24,8 @@ PIECE_MOBILITY = {
 
 
 class NN(object):
-    activ_hidden = "relu"
-    optimizer = "nadam"  # sgd rmsprop adagrad adadelta adam adamax nadam
+    activ_hidden = "sigmoid"  # linear relu elu sigmoid tanh softmax
+    optimizer = "nadam"  # sgd rmsprop adagrad adadelta adamax adam nadam
 
     def __init__(self, filename) -> None:
         super().__init__()
@@ -46,12 +45,6 @@ class NN(object):
         kernel = 8 * 8
         hidden = layers.Dense(kernel, activation=self.activ_hidden, kernel_regularizer=reg)(positions)
         hidden = layers.Dense(kernel, activation=self.activ_hidden, kernel_regularizer=reg)(hidden)
-        hidden = concatenate([hidden, positions])
-        hidden = layers.Dense(kernel, activation=self.activ_hidden, kernel_regularizer=reg)(hidden)
-        hidden = layers.Dense(kernel, activation=self.activ_hidden, kernel_regularizer=reg)(hidden)
-        hidden = concatenate([hidden, positions])
-        hidden = layers.Dense(kernel, activation=self.activ_hidden, kernel_regularizer=reg)(hidden)
-        hidden = layers.Dense(kernel, activation=self.activ_hidden, kernel_regularizer=reg)(hidden)
 
         out_from = layers.Dense(64, activation="softmax", name="from")(hidden)
         out_to = layers.Dense(64, activation="softmax", name="to")(hidden)
@@ -59,7 +52,7 @@ class NN(object):
         model = Model(inputs=[positions, ], outputs=[out_from, out_to])
         model.compile(optimizer=self.optimizer,
                       loss='categorical_crossentropy',
-                      loss_weights=[1.0, 5.0],
+                      loss_weights=[0.1, 1.0],
                       metrics=['categorical_accuracy'])
         plot_model(model, to_file='model.png', show_shapes=True)
         return model
@@ -92,23 +85,29 @@ class NN(object):
         return piece_placement
 
     def learn(self, data, epochs):
-        data = list(filter(lambda x: x.get_score() > 0.0, data))
+        data: List[MoveRecord] = list(filter(lambda x: x.get_score() > 0.0, data))
         random.shuffle(data)
-        data = data[:100000]
 
-        dist = Counter([x.get_score() for x in data])
-        logging.info("Scores: %s", ["%.1f: %.2f" % (x, dist[x] / float(len(data))) for x in dist])
+        score_dist = Counter([x.get_score() for x in data])
+        logging.info("Scores: %s", ["%.1f: %.2f" % (x, score_dist[x] / float(len(data))) for x in score_dist])
+        piece_dist = Counter([x.piece.symbol().upper() for x in data])
+        piece_dist = {x: piece_dist[x] / float(len(data)) for x in piece_dist}
+        logging.info("Pieces: %s", {x: round(y * 100) for x, y in piece_dist.items()})
 
         batch_len = len(data)
         inputs_pos = np.full((batch_len, 8 * 8 * 12), 0)
         inputs = inputs_pos
 
+        sample_weights = [np.full((batch_len,), 1.0), np.full((batch_len,), 1.0)]
         out_from = np.full((batch_len, 64,), 0.0)
         out_to = np.full((batch_len, 64,), 0.0)
         outputs = [out_from, out_to]
 
         batch_n = 0
         for rec in data:
+            sample_weights[0][batch_n] = 1.0 - piece_dist[rec.piece.symbol().upper()]
+            sample_weights[1][batch_n] = 1.0 - piece_dist[rec.piece.symbol().upper()]
+
             inputs_pos[batch_n] = self._fen_to_array(rec.fen).flatten()
 
             out_from[batch_n] = np.full((64,), 0.0)
@@ -123,8 +122,9 @@ class NN(object):
 
             batch_n += 1
 
-        res = self._model.fit(inputs, outputs, validation_split=0.1, shuffle=True,
-                              callbacks=[TensorBoard('/tmp/tensorboard/%d' % time.time())], verbose=2,
+        res = self._model.fit(inputs, outputs, sample_weight=sample_weights,
+                              validation_split=0.1, shuffle=True,
+                              callbacks=[TensorBoard('/tmp/tensorboard/%d' % time.time())], verbose=0,
                               epochs=epochs, batch_size=128, )
         # logging.debug("Trained: %s", res.history)
 
@@ -137,6 +137,7 @@ class NN(object):
 
 
 class MoveRecord(object):
+    piece: chess.Piece
 
     def __init__(self, fen=None, move=None, kpis=None, piece=None) -> None:
         super().__init__()

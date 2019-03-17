@@ -8,7 +8,9 @@ from nn import NN, PIECE_MOBILITY, MoveRecord
 
 
 class Player(object):
-    board: chess.Board
+    """
+    :type board: training.BoardOptim
+    """
     nn: NN
 
     def __init__(self, color, nn) -> None:
@@ -36,10 +38,6 @@ class Player(object):
         # logging.debug("%d. %s %s", self.board.fullmove_number, move, log_rec["score"])
         self.moves_log.append(log_rec)
         self.board.comment_stack.append("%s %s" % (log_rec.get_score(), balance))
-
-        # if balance[0] != 0:
-        #    self.board.write_pgn('last.pgn')
-        #    print(self.board.turn)
 
         not_over = move and not self.board.is_game_over(claim_draw=False)
         return not_over

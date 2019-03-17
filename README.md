@@ -107,3 +107,7 @@ I made many experiments yesterday, trying to figure out why NN still suggests du
 ### 16 Mar, 2019
 
 Found that moves in training dataset were not unique. God knows how that was affecting learning process for NN... Also found out that material balance score were inverted for black, also affecting NN training scores. Good to find this, it gives me hope that it is possible to build NN like I want.
+
+Big problem is dataset balancing. Moves tend to use kings more, which leads NN to learn to move kings more. Trying to re-balance learning sample weights did not help.
+
+No matter what I did, the best accuracy I get from NN is 0.5, which is equal to random. I will try to go back to principle of "all moves from won game are good" to research it again.

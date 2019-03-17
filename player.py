@@ -21,7 +21,8 @@ class Player(object):
         self.moves_log = []
 
     def makes_move(self):
-        move, fen = self._choose_best_move()
+        fen = self.board.board_fen() if self.color == chess.WHITE else self.board.mirror().board_fen()
+        move, fen = self._choose_best_move(fen)
         move_rec = self._mirror_move(move) if self.color == chess.BLACK else move
 
         before = self._get_evals(self.board.board_fen())
@@ -49,8 +50,7 @@ class Player(object):
         self.board.turn = not self.board.turn
         return evals
 
-    def _choose_best_move(self):
-        fen = self.board.board_fen() if self.color == chess.WHITE else self.board.mirror().board_fen()
+    def _choose_best_move(self, fen):
         weights_from, weights_to = self.nn.query(fen)
         if self.color == chess.BLACK:
             weights_from = np.flipud(weights_from)
@@ -73,7 +73,7 @@ class Player(object):
 
             selected_move = move
             break
-        return selected_move, fen
+        return selected_move
 
     def _gen_move_rating(self, weights_from, weights_to):
         move_rating = []

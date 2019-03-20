@@ -1,6 +1,5 @@
 import logging
 import os
-import random
 import time
 from collections import Counter
 from typing import List
@@ -10,6 +9,8 @@ from keras import layers, Model, models
 from keras.callbacks import TensorBoard
 from keras.regularizers import l2
 from keras.utils import plot_model
+
+from chessnn import MoveRecord
 
 PIECE_MAP = "PpNnBbRrQqKk"
 
@@ -30,15 +31,15 @@ class NN(object):
         self._model.save(filename, overwrite=True)
 
     def _get_nn(self):
-        positions = layers.Input(shape=(8 * 8 * 12,), name="positions")  # 12 is len of PIECE_MAP
-
         reg = l2(0.0001)
         kernel = 8 * 8
+
+        positions = layers.Input(shape=(8 * 8 * len(PIECE_MAP),), name="positions")
         hidden = layers.Dense(kernel, activation=self.activ_hidden, kernel_regularizer=reg)(positions)
         hidden = layers.Dense(kernel, activation=self.activ_hidden, kernel_regularizer=reg)(hidden)
 
-        out_from = layers.Dense(64, activation="softmax", name="from")(hidden)
-        out_to = layers.Dense(64, activation="softmax", name="to")(hidden)
+        out_from = layers.Dense(64, activation="hard_sigmoid", name="from")(hidden)
+        out_to = layers.Dense(64, activation="hard_sigmoid", name="to")(hidden)
 
         model = Model(inputs=[positions, ], outputs=[out_from, out_to])
         model.compile(optimizer=self.optimizer,
@@ -77,7 +78,6 @@ class NN(object):
 
     def learn(self, data, epochs):
         data: List[MoveRecord] = list(filter(lambda x: x.get_score() > 0.0, data))
-        random.shuffle(data)
 
         score_dist = Counter([x.get_score() for x in data])
         logging.info("Scores: %s", ["%.1f: %.2f" % (x, score_dist[x] / float(len(data))) for x in score_dist])
@@ -115,7 +115,7 @@ class NN(object):
 
         res = self._model.fit(inputs, outputs, sample_weight=sample_weights,
                               validation_split=0.1, shuffle=True,
-                              callbacks=[TensorBoard('/tmp/tensorboard/%d' % time.time())], verbose=0,
+                              callbacks=[TensorBoard('/tmp/tensorboard/%d' % time.time())], verbose=2,
                               epochs=epochs, batch_size=128, )
         logging.debug("Trained: %s", res.history)
 

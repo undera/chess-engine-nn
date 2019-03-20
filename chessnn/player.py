@@ -56,8 +56,7 @@ class Player(object):
             weights_to = np.flipud(weights_to)
 
         move_rating = self._gen_move_rating(weights_from, weights_to)
-        move_rating.sort(key=lambda x: x[2], reverse=True)
-        move_rating.sort(key=lambda x: x[1], reverse=True)
+        move_rating.sort(key=lambda x: x[1] * x[2], reverse=True)
 
         selected_move = move_rating[0][0] if move_rating else chess.Move.null()
         if self.board.fullmove_number <= 1 and self.board.turn == chess.WHITE:

@@ -37,25 +37,35 @@ def play_one_game(pwhite, pblack, rnd):
     return board.result(claim_draw=True)
 
 
-def dump_moves(dataset):
-    if os.path.exists("moves.pkl"):
-        os.rename("moves.pkl", "moves.bak.pkl")
-    try:
-        with open("moves.pkl", "wb") as fhd:
-            pickle.dump(dataset, fhd)
-    except:
-        os.rename("moves.bak.pkl", "moves.pkl")
+class DataSet(object):
 
+    def __init__(self, fname) -> None:
+        super().__init__()
+        self.fname = fname
+        self.dataset = set()
 
-def load_moves():
-    dataset = set()
-    if os.path.exists("moves.pkl"):
-        with open("moves.pkl", 'rb') as fhd:
-            loaded = pickle.load(fhd)
-            dataset.update(loaded)
-            nn.learn(dataset, 50)
-            # nn.save("nn.hdf5")
-    return dataset
+    def dump_moves(self):
+        if os.path.exists(self.fname):
+            os.rename(self.fname, self.fname + ".bak")
+        try:
+            with open(self.fname, "wb") as fhd:
+                pickle.dump(self.dataset, fhd)
+        except:
+            os.rename(self.fname + ".bak", self.fname)
+
+    def load_moves(self):
+        if os.path.exists(self.fname):
+            with open(self.fname, 'rb') as fhd:
+                loaded = pickle.load(fhd)
+                self.dataset.update(loaded)
+                nn.learn(dataset, 50)
+                # nn.save("nn.hdf5")
+
+    def update(self, moves):
+        moves = list(filter(lambda x: x.get_score() > 0.0, moves))
+        l1 = len(self.dataset)
+        self.dataset.update(moves)
+        assert len(self.dataset) < l1 + len(moves)
 
 
 if __name__ == "__main__":
@@ -66,26 +76,18 @@ if __name__ == "__main__":
     white = Player(WHITE, nn)
     black = Player(BLACK, nn)
 
-    dataset = load_moves()
+    dataset = DataSet("moves.pkl")
+    dataset.load_moves()
 
     rnd = 0
     while True:
         rnd += 1
         result = play_one_game(white, black, rnd)
 
-        wmoves = white.get_moves()
-        bmoves = black.get_moves()
-        game_data = wmoves + bmoves
-        game_data = list(filter(lambda x: x.get_score() > 0.0, game_data))
-
-        l1 = len(dataset)
-        dataset.update(game_data)
-
-        # logging.info("%s+%s=%s", l1, len(game_data), len(dataset))
-        assert len(dataset) < l1 + len(game_data)
+        dataset.update(white.get_moves() + black.get_moves())
 
         if not (rnd % 20):
-            dump_moves(dataset)
+            dataset.dump_moves()
 
             # break
             nn.learn(dataset, 20)

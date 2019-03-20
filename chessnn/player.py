@@ -16,6 +16,7 @@ class Player(object):
         super().__init__()
         self.color = color
         self.board = None
+        self.start_from = 0
         self.nn = nn
         self.moves_log = []
 
@@ -56,11 +57,12 @@ class Player(object):
             weights_to = np.flipud(weights_to)
 
         move_rating = self._gen_move_rating(weights_from, weights_to)
+        if self.board.fullmove_number <= 1 and self.board.turn == chess.WHITE:
+            return move_rating[self.start_from][0]
+
         move_rating.sort(key=lambda x: x[1] * x[2], reverse=True)
 
         selected_move = move_rating[0][0] if move_rating else chess.Move.null()
-        if self.board.fullmove_number <= 1 and self.board.turn == chess.WHITE:
-            shuffle(move_rating)
         for move, sw, dw in move_rating:
             self.board.push(move)
             try:

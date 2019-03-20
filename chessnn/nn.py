@@ -32,19 +32,22 @@ class NN(object):
 
     def _get_nn(self):
         reg = l2(0.0001)
-        kernel = 8 * 8
+        kernel = 8 * 8 * 2
 
         positions = layers.Input(shape=(8 * 8 * len(PIECE_MAP),), name="positions")
         hidden = layers.Dense(kernel, activation=self.activ_hidden, kernel_regularizer=reg)(positions)
         hidden = layers.Dense(kernel, activation=self.activ_hidden, kernel_regularizer=reg)(hidden)
+        out_from = layers.Dense(64, activation="sigmoid", name="from")(hidden)
+        hidden = layers.concatenate([out_from, positions])
+        hidden = layers.Dense(kernel, activation=self.activ_hidden, kernel_regularizer=reg)(hidden)
+        hidden = layers.Dense(kernel, activation=self.activ_hidden, kernel_regularizer=reg)(hidden)
 
-        out_from = layers.Dense(64, activation="hard_sigmoid", name="from")(hidden)
-        out_to = layers.Dense(64, activation="hard_sigmoid", name="to")(hidden)
+        out_to = layers.Dense(64, activation="sigmoid", name="to")(hidden)
 
         model = Model(inputs=[positions, ], outputs=[out_from, out_to])
         model.compile(optimizer=self.optimizer,
                       loss='categorical_crossentropy',
-                      loss_weights=[0.1, 1.0],
+                      loss_weights=[0.5, 1.0],
                       metrics=['categorical_accuracy'])
         plot_model(model, to_file='model.png', show_shapes=True)
         return model
@@ -77,8 +80,6 @@ class NN(object):
         return piece_placement
 
     def learn(self, data, epochs):
-        data: List[MoveRecord] = list(filter(lambda x: x.get_score() > 0.0, data))
-
         score_dist = Counter([x.get_score() for x in data])
         logging.info("Scores: %s", ["%.1f: %.2f" % (x, score_dist[x] / float(len(data))) for x in score_dist])
         piece_dist = Counter([x.piece.symbol().upper() for x in data])
@@ -113,9 +114,10 @@ class NN(object):
 
             batch_n += 1
 
+        cbs = [TensorBoard('/tmp/tensorboard/%d' % time.time())] if epochs > 1 else []
         res = self._model.fit(inputs, outputs, sample_weight=sample_weights,
                               validation_split=0.1, shuffle=True,
-                              callbacks=[TensorBoard('/tmp/tensorboard/%d' % time.time())], verbose=2,
+                              callbacks=cbs, verbose=2,
                               epochs=epochs, batch_size=128, )
         logging.debug("Trained: %s", res.history)
 

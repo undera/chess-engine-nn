@@ -11,8 +11,14 @@ from chessnn.player import Player
 
 
 def play_one_game(pwhite, pblack, rnd):
+    """
+
+    :type pwhite: Player
+    :type pblack: Player
+    """
     board = BoardOptim(STARTING_FEN)
     pwhite.board = board
+    pwhite.start_from = (rnd - 1) % 20
     pblack.board = board
 
     while True:  # and board.fullmove_number < 150
@@ -70,6 +76,8 @@ if __name__ == "__main__":
         wmoves = white.get_moves()
         bmoves = black.get_moves()
         game_data = wmoves + bmoves
+        game_data = list(filter(lambda x: x.get_score() > 0.0, game_data))
+
         l1 = len(dataset)
         dataset.update(game_data)
 

@@ -16,6 +16,9 @@ PIECE_MAP = "PpNnBbRrQqKk"
 
 
 class NN(object):
+    activ_hidden = "sigmoid"  # linear relu elu sigmoid tanh softmax
+    optimizer = "nadam"  # sgd rmsprop adagrad adadelta adamax adam nadam
+
     def __init__(self, filename) -> None:
         super().__init__()
         if os.path.exists(filename):
@@ -114,9 +117,10 @@ class NN(object):
 
             batch_n += 1
 
+        cbs = [TensorBoard('/tmp/tensorboard/%d' % time.time())] if epochs > 1 else []
         res = self._model.fit(inputs, outputs, sample_weight=sample_weights,
                               validation_split=0.1, shuffle=True,
-                              callbacks=[TensorBoard('/tmp/tensorboard/%d' % time.time())], verbose=2,
+                              callbacks=cbs, verbose=2,
                               epochs=epochs, batch_size=128, )
         logging.debug("Trained: %s", res.history)
 

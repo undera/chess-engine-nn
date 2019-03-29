@@ -99,6 +99,25 @@ def play(pwhite, pblack):
             nn.save("nn.hdf5")
 
 
+def play_per_turn(pwhite, pblack):
+    dataset = DataSet("moves.pkl")
+    dataset.load_moves()
+
+    rnd = 0
+    while True:
+        rnd += 1
+        result = play_one_game(pwhite, pblack, rnd)
+
+        dataset.update(pwhite.get_moves() + pblack.get_moves())
+
+        if not (rnd % 20):
+            dataset.dump_moves()
+
+            # break
+            nn.learn(dataset, 20)
+            # nn.save("nn.hdf5")
+
+
 if __name__ == "__main__":
     sys.setrecursionlimit(10000)
     logging.basicConfig(level=logging.INFO)
@@ -107,19 +126,4 @@ if __name__ == "__main__":
     white = Player(WHITE, nn)
     black = Player(BLACK, nn)
 
-    dataset = DataSet("moves.pkl")
-    dataset.load_moves()
-
-    rnd = 0
-    while True:
-        rnd += 1
-        result = play_one_game(white, black, rnd)
-
-        dataset.update(white.get_moves() + black.get_moves())
-
-        if not (rnd % 20):
-            dataset.dump_moves()
-
-            # break
-            nn.learn(dataset, 20)
-            # nn.save("nn.hdf5")
+    play(white, black)

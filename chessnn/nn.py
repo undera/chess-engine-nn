@@ -16,9 +16,6 @@ PIECE_MAP = "PpNnBbRrQqKk"
 
 
 class NN(object):
-    activ_hidden = "sigmoid"  # linear relu elu sigmoid tanh softmax
-    optimizer = "nadam"  # sgd rmsprop adagrad adadelta adamax adam nadam
-
     def __init__(self, filename) -> None:
         super().__init__()
         if os.path.exists(filename):
@@ -33,16 +30,20 @@ class NN(object):
     def _get_nn(self):
         reg = l2(0.0001)
         kernel = 8 * 8
+        activ_hidden = "sigmoid"  # linear relu elu sigmoid tanh softmax
+        optimizer = "nadam"  # sgd rmsprop adagrad adadelta adamax adam nadam
 
         positions = layers.Input(shape=(8 * 8 * len(PIECE_MAP),), name="positions")
-        hidden = layers.Dense(kernel, activation=self.activ_hidden, kernel_regularizer=reg)(positions)
-        hidden = layers.Dense(kernel, activation=self.activ_hidden, kernel_regularizer=reg)(hidden)
+        hidden = layers.Dense(kernel, activation=activ_hidden, kernel_regularizer=reg)(positions)
+        hidden = layers.Dense(kernel, activation=activ_hidden, kernel_regularizer=reg)(hidden)
+        hidden = layers.Dense(kernel, activation=activ_hidden, kernel_regularizer=reg)(hidden)
+        hidden = layers.Dense(kernel, activation=activ_hidden, kernel_regularizer=reg)(hidden)
 
         out_from = layers.Dense(64, activation="hard_sigmoid", name="from")(hidden)
         out_to = layers.Dense(64, activation="hard_sigmoid", name="to")(hidden)
 
         model = Model(inputs=[positions, ], outputs=[out_from, out_to])
-        model.compile(optimizer=self.optimizer,
+        model.compile(optimizer=optimizer,
                       loss='categorical_crossentropy',
                       loss_weights=[0.1, 1.0],
                       metrics=['categorical_accuracy'])
@@ -76,7 +77,7 @@ class NN(object):
 
         return piece_placement
 
-    def learn(self, data, epochs):
+    def learn(self, data, epochs, force_score=None):
         data: List[MoveRecord] = list(filter(lambda x: x.get_score() > 0.0, data))
 
         score_dist = Counter([x.get_score() for x in data])
@@ -90,8 +91,8 @@ class NN(object):
         inputs = inputs_pos
 
         sample_weights = [np.full((batch_len,), 1.0), np.full((batch_len,), 1.0)]
-        out_from = np.full((batch_len, 64,), 0.0)
-        out_to = np.full((batch_len, 64,), 0.0)
+        out_from = np.full((batch_len, 64,), 0.5)
+        out_to = np.full((batch_len, 64,), 0.5)
         outputs = [out_from, out_to]
 
         batch_n = 0
@@ -101,10 +102,10 @@ class NN(object):
 
             inputs_pos[batch_n] = self._fen_to_array(rec.fen).flatten()
 
-            out_from[batch_n] = np.full((64,), 0.0)
-            out_to[batch_n] = np.full((64,), 0.0)
+            out_from[batch_n] = np.full((64,), 0.5)
+            out_to[batch_n] = np.full((64,), 0.5)
 
-            score = rec.get_score()
+            score = rec.get_score() if force_score is not None else force_score
             out_from[batch_n][rec.from_square] = score
             out_to[batch_n][rec.to_square] = score
 

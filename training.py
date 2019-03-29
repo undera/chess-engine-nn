@@ -1,6 +1,7 @@
 import logging
 import os
 import pickle
+import random
 import sys
 
 from chess import STARTING_FEN, WHITE, BLACK
@@ -52,6 +53,36 @@ def load_moves():
     return dataset
 
 
+def play(pwhite, pblack):
+    rnd = 0
+    data = []
+    while True:
+        rnd += 1
+        result = play_one_game(pwhite, pblack, rnd)
+
+        wmoves = pwhite.get_moves()
+        bmoves = pblack.get_moves()
+        game_data = wmoves + bmoves
+
+        if result == '1-0':
+            for x in wmoves:
+                x.forced_score = 1.0
+            for x in bmoves:
+                x.forced_score = 0.0
+            data.extend(game_data)
+        elif result == '0-1':
+            for x in wmoves:
+                x.forced_score = 0.0
+            for x in bmoves:
+                x.forced_score = 1.0
+            data.extend(game_data)
+
+        if not (rnd % 20):
+            random.shuffle(game_data)
+            nn.learn(data, 20, 0.5)
+            nn.save("nn.hdf5")
+
+
 if __name__ == "__main__":
     sys.setrecursionlimit(10000)
     logging.basicConfig(level=logging.INFO)
@@ -60,25 +91,4 @@ if __name__ == "__main__":
     white = Player(WHITE, nn)
     black = Player(BLACK, nn)
 
-    dataset = load_moves()
-
-    rnd = 0
-    while True:
-        rnd += 1
-        result = play_one_game(white, black, rnd)
-
-        wmoves = white.get_moves()
-        bmoves = black.get_moves()
-        game_data = wmoves + bmoves
-        l1 = len(dataset)
-        dataset.update(game_data)
-
-        # logging.info("%s+%s=%s", l1, len(game_data), len(dataset))
-        assert len(dataset) < l1 + len(game_data)
-
-        if not (rnd % 20):
-            dump_moves(dataset)
-
-            # break
-            nn.learn(dataset, 20)
-            # nn.save("nn.hdf5")
+    play(white, black)

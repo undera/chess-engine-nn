@@ -96,6 +96,7 @@ class MoveRecord(object):
 
     def __init__(self, fen=None, move=None, kpis=None, piece=None) -> None:
         super().__init__()
+        self.forced_score = None
         self.fen = fen
         self.piece = piece
         self.to_square = move.to_square
@@ -119,6 +120,9 @@ class MoveRecord(object):
         raise ValueError()
 
     def get_score(self):
+        if self.forced_score is not None:
+            return self.forced_score
+
         # first criteria
         if self.kpis[0] < 0:  # material loss
             return 0.0

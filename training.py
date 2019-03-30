@@ -54,13 +54,13 @@ class DataSet(object):
         except:
             os.rename(self.fname + ".bak", self.fname)
 
-    def load_moves(self):
+    def load_moves(self, net):
         if os.path.exists(self.fname):
             with open(self.fname, 'rb') as fhd:
                 loaded = pickle.load(fhd)
                 self.dataset.update(loaded)
-                nn.learn(self.dataset, 50)
-                # nn.save("nn.hdf5")
+                net.learn(self.dataset, 50)
+                # net.save("nn.hdf5")
 
     def update(self, moves):
         # moves = list(filter(lambda x: x.get_score() > 0.0, moves))
@@ -84,7 +84,8 @@ def set_to_file(draw, param):
 
 def play(pwhite, pblack):
     dataset = DataSet("moves.pkl")
-    dataset.load_moves()
+    dataset.load_moves(pwhite.nn)
+    # return
 
     winning: Set[MoveRecord] = set()
     losing: Set[MoveRecord] = set()
@@ -109,43 +110,30 @@ def play(pwhite, pblack):
             draw.update(bmoves)
 
         if not (rnd % 20):
+            winning -= losing
+            winning -= draw
+            losing -= winning
+            losing -= draw
             logging.info("Orig: %s %s %s", len(winning), len(losing), len(draw))
-            pure_win = winning - losing - draw
-            pure_loss = losing - winning - draw
-            pure_draw = draw - winning - losing
-            logging.info("Pure: %s %s %s", len(pure_win), len(pure_loss), len(pure_draw))
-            # set_to_file(winning, "/tmp/win.txt")
-            # set_to_file(losing, "/tmp/los.txt")
-            # set_to_file(draw, "/tmp/drw.txt")
 
-            if not pure_win and not pure_loss:
-                pure_win = winning - losing
-                pure_loss = losing - winning
-                assert not pure_win and not pure_loss
-
-            if not pure_win and not pure_loss:
-                assert pure_draw
-                nn.learn(pure_draw, 1)
+            if not winning and not losing:
+                nn.learn(draw, 1)
             else:
-                for x in pure_win:
+                for x in winning:
                     x.forced_score = 1.0
-                for x in pure_loss:
+                for x in losing:
                     x.forced_score = 0.0
 
-                dataset.update(pure_win)
-                dataset.update(pure_loss)
-                dataset.dump_moves()
-                nn.learn(dataset.dataset, 20)
+                # dataset.update(pure_win)
+                # dataset.update(pure_loss)
+                # dataset.dump_moves()
+                nn.learn(winning | losing, 20)
                 # nn.save("nn.hdf5")
-
-            winning = set()
-            losing = set()
-            draw = set()
 
 
 def play_per_turn(pwhite, pblack):
     dataset = DataSet("moves.pkl")
-    dataset.load_moves()
+    dataset.load_moves(pwhite.nn)
 
     rnd = 0
     while True:

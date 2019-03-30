@@ -31,13 +31,16 @@ class NN(object):
         self._model.save(filename, overwrite=True)
 
     def _get_nn(self):
-        reg = l2(0.0001)
-        kernel = 8 * 8
-        activ_hidden = "sigmoid"  # linear relu elu sigmoid tanh softmax
+        reg = None  # l2(0.0001)
+        kernel = 8 * 8 * 4
+        activ_hidden = "relu"  # linear relu elu sigmoid tanh softmax
         optimizer = "nadam"  # sgd rmsprop adagrad adadelta adamax adam nadam
 
         positions = layers.Input(shape=(8 * 8 * len(PIECE_MAP),), name="positions")
         hidden = layers.Dense(kernel, activation=activ_hidden, kernel_regularizer=reg)(positions)
+        hidden = layers.Dense(kernel, activation=activ_hidden, kernel_regularizer=reg)(hidden)
+        hidden = layers.Dense(kernel, activation=activ_hidden, kernel_regularizer=reg)(hidden)
+        hidden = layers.Dense(kernel, activation=activ_hidden, kernel_regularizer=reg)(hidden)
         hidden = layers.Dense(kernel, activation=activ_hidden, kernel_regularizer=reg)(hidden)
         hidden = layers.Dense(kernel, activation=activ_hidden, kernel_regularizer=reg)(hidden)
         hidden = layers.Dense(kernel, activation=activ_hidden, kernel_regularizer=reg)(hidden)
@@ -48,7 +51,7 @@ class NN(object):
         model = Model(inputs=[positions, ], outputs=[out_from, out_to])
         model.compile(optimizer=optimizer,
                       loss='categorical_crossentropy',
-                      loss_weights=[0.1, 1.0],
+                      loss_weights=[1.0, 1.0],
                       metrics=['categorical_accuracy'])
         plot_model(model, to_file='model.png', show_shapes=True)
         return model
@@ -93,13 +96,14 @@ class NN(object):
 
         batch_n = 0
         for rec in data:
+            score = rec.get_score() if force_score is None else force_score
+            assert score is not None
+
             inputs_pos[batch_n] = self._fen_to_array(rec.fen).flatten()
 
             out_from[batch_n] = np.full((64,), 0.0)
             out_to[batch_n] = np.full((64,), 0.0)
 
-            score = rec.get_score() if force_score is None else force_score
-            assert score is not None
             out_from[batch_n][rec.from_square] = score
             out_to[batch_n][rec.to_square] = score
 

@@ -115,3 +115,5 @@ No matter what I did, the best accuracy I get from NN is 0.5, which is equal to 
 ### 30 Mar, 2019
 
 I see that "noisy moves" from draws affect NN learning in a bad way. Same for pointless moves along games with victories. Those moves don't lead to victory as much. So maybe if learning moves for NN would be chosen more selectively, it would help. Will try it in the morning (00:27 now)...
+
+Well, I experimented whole day and the result didn't change. Still stupid moves.

@@ -1,4 +1,5 @@
 import copy
+import json
 from collections import Counter
 
 import chess
@@ -101,17 +102,21 @@ class MoveRecord(object):
         self.piece = piece
         self.to_square = move.to_square
         self.from_square = move.from_square
-        self.kpis = kpis
+        self.kpis = [int(x) for x in kpis]
         # TODO: add defences to KPIs
 
+    def __str__(self) -> str:
+        return json.dumps({x: y for x, y in self.__dict__.items() if x not in ('forced_score', 'kpis')})
+
     def __hash__(self):
-        return sum([hash(x) for x in (self.fen, self.to_square, self.from_square, self.piece)])
+        return sum([hash(x) for x in (self.fen, self.to_square, self.from_square, self.piece, self.forced_score)])
 
     def __eq__(self, o) -> bool:
         """
         :type o: MoveRecord
         """
-        return self.fen == o.fen and self.from_square == o.from_square and self.to_square == o.to_square
+        return self.fen == o.fen and self.piece == o.piece and self.forced_score == o.forced_score \
+               and self.from_square == o.from_square and self.to_square == o.to_square
 
     def __ne__(self, o) -> bool:
         """

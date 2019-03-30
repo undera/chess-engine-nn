@@ -42,8 +42,8 @@ class NN(object):
         hidden = layers.Dense(kernel, activation=activ_hidden, kernel_regularizer=reg)(hidden)
         hidden = layers.Dense(kernel, activation=activ_hidden, kernel_regularizer=reg)(hidden)
 
-        out_from = layers.Dense(64, activation="hard_sigmoid", name="from")(hidden)
-        out_to = layers.Dense(64, activation="hard_sigmoid", name="to")(hidden)
+        out_from = layers.Dense(64, activation="softmax", name="from")(hidden)
+        out_to = layers.Dense(64, activation="softmax", name="to")(hidden)
 
         model = Model(inputs=[positions, ], outputs=[out_from, out_to])
         model.compile(optimizer=optimizer,
@@ -81,34 +81,25 @@ class NN(object):
         return piece_placement
 
     def learn(self, data, epochs, force_score=None):
-        data: List[MoveRecord] = list(filter(lambda x: x.get_score() > 0.0, data))
-
-        score_dist = Counter([x.get_score() for x in data])
-        logging.info("Scores: %s", ["%.1f: %.2f" % (x, score_dist[x] / float(len(data))) for x in score_dist])
-        piece_dist = Counter([x.piece.symbol().upper() for x in data])
-        piece_dist = {x: piece_dist[x] / float(len(data)) for x in piece_dist}
-        logging.info("Pieces: %s", {x: round(y * 100) for x, y in piece_dist.items()})
+        # data: List[MoveRecord] = list(filter(lambda x: x.get_score() > 0.0, data))
 
         batch_len = len(data)
         inputs_pos = np.full((batch_len, 8 * 8 * 12), 0)
         inputs = inputs_pos
 
-        sample_weights = [np.full((batch_len,), 1.0), np.full((batch_len,), 1.0)]
-        out_from = np.full((batch_len, 64,), 0.5)
-        out_to = np.full((batch_len, 64,), 0.5)
+        out_from = np.full((batch_len, 64,), 0.0)
+        out_to = np.full((batch_len, 64,), 0.0)
         outputs = [out_from, out_to]
 
         batch_n = 0
         for rec in data:
-            sample_weights[0][batch_n] = 1.0 - piece_dist[rec.piece.symbol().upper()]
-            sample_weights[1][batch_n] = 1.0 - piece_dist[rec.piece.symbol().upper()]
-
             inputs_pos[batch_n] = self._fen_to_array(rec.fen).flatten()
 
-            out_from[batch_n] = np.full((64,), 0.5)
-            out_to[batch_n] = np.full((64,), 0.5)
+            out_from[batch_n] = np.full((64,), 0.0)
+            out_to[batch_n] = np.full((64,), 0.0)
 
-            score = rec.get_score() if force_score is not None else force_score
+            score = rec.get_score() if force_score is None else force_score
+            assert score is not None
             out_from[batch_n][rec.from_square] = score
             out_to[batch_n][rec.to_square] = score
 
@@ -118,7 +109,7 @@ class NN(object):
             batch_n += 1
 
         cbs = [TensorBoard('/tmp/tensorboard/%d' % time.time())] if epochs > 1 else []
-        res = self._model.fit(inputs, outputs, sample_weight=sample_weights,
+        res = self._model.fit(inputs, outputs,
                               validation_split=0.1, shuffle=True,
                               callbacks=cbs, verbose=2,
                               epochs=epochs, batch_size=128, )

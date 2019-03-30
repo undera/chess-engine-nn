@@ -1,12 +1,12 @@
 import logging
 import os
 import pickle
-import random
 import sys
+from typing import Set
 
 from chess import STARTING_FEN, WHITE, BLACK
 
-from chessnn import BoardOptim
+from chessnn import BoardOptim, MoveRecord
 from chessnn.nn import NN
 from chessnn.player import Player
 
@@ -59,44 +59,88 @@ class DataSet(object):
             with open(self.fname, 'rb') as fhd:
                 loaded = pickle.load(fhd)
                 self.dataset.update(loaded)
-                nn.learn(dataset, 50)
+                nn.learn(self.dataset, 50)
                 # nn.save("nn.hdf5")
 
     def update(self, moves):
-        moves = list(filter(lambda x: x.get_score() > 0.0, moves))
-        l1 = len(self.dataset)
+        # moves = list(filter(lambda x: x.get_score() > 0.0, moves))
+        lprev = len(self.dataset)
         self.dataset.update(moves)
-        assert len(self.dataset) < l1 + len(moves)
+        # assert not l1 or len(self.dataset) < l1 + len(moves)
+        if len(self.dataset) - lprev < len(moves):
+            logging.info("partial increase")
+        elif len(self.dataset) - lprev == len(moves):
+            logging.info("full increase")
+        else:
+            logging.info("no increase")
+
+
+def set_to_file(draw, param):
+    lines = ["%s\n" % item for item in draw]
+    lines.sort()
+    with open(param, "w") as fhd:
+        fhd.writelines(lines)
 
 
 def play(pwhite, pblack):
+    dataset = DataSet("moves.pkl")
+    dataset.load_moves()
+
+    winning: Set[MoveRecord] = set()
+    losing: Set[MoveRecord] = set()
+    draw: Set[MoveRecord] = set()
+
     rnd = 0
-    data = []
     while True:
         rnd += 1
         result = play_one_game(pwhite, pblack, rnd)
 
         wmoves = pwhite.get_moves()
         bmoves = pblack.get_moves()
-        game_data = wmoves + bmoves
 
         if result == '1-0':
-            for x in wmoves:
-                x.forced_score = 1.0
-            for x in bmoves:
-                x.forced_score = 0.0
-            data.extend(game_data)
+            winning.update(wmoves)
+            losing.update(bmoves)
         elif result == '0-1':
-            for x in wmoves:
-                x.forced_score = 0.0
-            for x in bmoves:
-                x.forced_score = 1.0
-            data.extend(game_data)
+            winning.update(bmoves)
+            losing.update(wmoves)
+        else:
+            draw.update(wmoves)
+            draw.update(bmoves)
 
         if not (rnd % 20):
-            random.shuffle(game_data)
-            nn.learn(data, 20, 0.5)
-            nn.save("nn.hdf5")
+            logging.info("Orig: %s %s %s", len(winning), len(losing), len(draw))
+            pure_win = winning - losing - draw
+            pure_loss = losing - winning - draw
+            pure_draw = draw - winning - losing
+            logging.info("Pure: %s %s %s", len(pure_win), len(pure_loss), len(pure_draw))
+            # set_to_file(winning, "/tmp/win.txt")
+            # set_to_file(losing, "/tmp/los.txt")
+            # set_to_file(draw, "/tmp/drw.txt")
+
+            if not pure_win and not pure_loss:
+                pure_win = winning - losing
+                pure_loss = losing - winning
+                assert not pure_win and not pure_loss
+
+            if not pure_win and not pure_loss:
+                assert pure_draw
+                nn.learn(pure_draw, 1)
+            else:
+                for x in pure_win:
+                    x.forced_score = 1.0
+                for x in pure_loss:
+                    x.forced_score = 0.0
+
+                dataset.update(pure_win)
+                dataset.update(pure_loss)
+                dataset.dump_moves()
+                nn.learn(dataset.dataset, 20)
+                # nn.save("nn.hdf5")
+
+            winning = set()
+            losing = set()
+            draw = set()
 
 
 def play_per_turn(pwhite, pblack):

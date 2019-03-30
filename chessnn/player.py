@@ -34,7 +34,7 @@ class Player(object):
         self.board.turn = not self.board.turn
         piece = self.board.piece_at(move.to_square)
         balance = np.subtract(after, before)
-        log_rec = MoveRecord(fen=fen, move=move_rec, kpis=balance, piece=piece)
+        log_rec = MoveRecord(fen=fen, move=move_rec, kpis=balance, piece=piece.piece_type)
 
         # logging.debug("%d. %s %s", self.board.fullmove_number, move, log_rec["score"])
         self.moves_log.append(log_rec)

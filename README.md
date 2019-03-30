@@ -111,3 +111,7 @@ Found that moves in training dataset were not unique. God knows how that was aff
 Big problem is dataset balancing. Moves tend to use kings more, which leads NN to learn to move kings more. Trying to re-balance learning sample weights did not help.
 
 No matter what I did, the best accuracy I get from NN is 0.5, which is equal to random. I will try to go back to principle of "all moves from won game are good" to research it again.
+
+### 30 Mar, 2019
+
+I see that "noisy moves" from draws affect NN learning in a bad way. Same for pointless moves along games with victories. Those moves don't lead to victory as much. So maybe if learning moves for NN would be chosen more selectively, it would help. Will try it in the morning (00:27 now)...

@@ -1,6 +1,7 @@
+import logging
+
 import chess
 import numpy as np
-from matplotlib import pyplot
 
 from chessnn import MoveRecord, BoardOptim, nn
 
@@ -19,44 +20,46 @@ class Player(object):
         self.moves_log = []
 
     def makes_move(self):
-        pos = self.board.get_position() if self.color == chess.WHITE else self.board.mirror().get_position()
+        info = self.board.get_info() if self.color == chess.WHITE else self.board.mirror().get_info()
+        pos, attacked, defended, threatened, threats = info
+
+        self.board.plot(attacked, pos, "attacked")
+        self.board.plot(defended, pos, "defended")
+        self.board.plot(threats, pos, "threats")
+        self.board.plot(threatened, pos, "threatened")
+
         move, possible_moves = self._choose_best_move(pos)
         move_rec = self._mirror_move(move) if self.color == chess.BLACK else move
 
-        before = self.board.get_evals(self.board.board_fen())
-
         self.board.push(move)
 
-        self.board.turn = not self.board.turn
-        after = self.board.get_evals(self.board.board_fen())
-        self.board.turn = not self.board.turn
-
-        balance = np.subtract(after, before)
+        balance = [0, 0, 0, 0]
 
         piece = self.board.piece_at(move.to_square)
         log_rec = MoveRecord(position=pos, move=move_rec, kpis=balance, piece=piece.piece_type,
                              possible_moves=possible_moves)
+        log_rec.attacked = attacked
+        log_rec.defended = defended
+        log_rec.threatened = threatened
+        log_rec.threats = threats
 
         # logging.debug("%d. %s %s", self.board.fullmove_number, move, log_rec["score"])
         self.moves_log.append(log_rec)
         self.board.comment_stack.append("%s %s" % (log_rec.get_score(), balance))
 
         not_over = move and not self.board.is_game_over(claim_draw=False)
+
         return not_over
 
     def _choose_best_move(self, pos):
         wfrom, wto, pos_moves = self.nn.query(pos[np.newaxis, ...])
-        self.board.plot(pos_moves, "possible_predicted")
+
+        self.board.plot(wfrom, pos, "wfrom")
+        self.board.plot(wto, pos, "wto")
 
         if self.color == chess.BLACK:
             wfrom = np.fliplr(wfrom)
             wto = np.fliplr(wto)
-
-            self.board.plot(wfrom, "wfrom-flipped")
-            self.board.plot(wto, "wto-flipped")
-        else:
-            self.board.plot(wfrom, "wfrom")
-            self.board.plot(wto, "wto")
 
         move_rating = self._gen_move_rating(wfrom, wto)
 
@@ -65,9 +68,14 @@ class Player(object):
             possible_moves[chess.square_file(x[0].to_square)][chess.square_rank(x[0].to_square)] = 1
         assert possible_moves.any()
 
-        self.board.plot(possible_moves, "possible moves")
+        if self.color == chess.BLACK:
+            possible_moves = np.fliplr(possible_moves)
+
+        self.board.plot(pos_moves, pos, "possible predicted")
+        self.board.plot(possible_moves, pos, "possible actual")
 
         if self.board.fullmove_number <= 1 and self.board.turn == chess.WHITE:
+            logging.debug("Forcing first move to be #%d", self.start_from)
             return move_rating[self.start_from][0], possible_moves
 
         move_rating.sort(key=lambda w: w[1] * w[2], reverse=True)

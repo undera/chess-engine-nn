@@ -41,15 +41,19 @@ class NN(object):
             out = layers.Dense(kernel, activation=activ_hidden)(inp)
             return concatenate([inp, out])
 
+        def _branch(layer, repeats, name):
+            for x in range(repeats):
+                layer = _residual(layer)
+
+            odense = layers.Dense(64, activation=activ_out, kernel_regularizer=reg)(layer)
+            omatrix = layers.Reshape((8, 8), name=name)(odense)
+            return odense, omatrix
+
         position = layers.Input(shape=(8, 8, 2, len(PIECE_TYPES),), name="position")
         hidden = layers.Flatten()(position)
-        hidden = _residual(hidden)
-        hidden = _residual(hidden)
-        hidden = _residual(hidden)
-        hidden = _residual(hidden)
 
-        pmoves = layers.Dense(64, activation=activ_out, kernel_regularizer=reg)(hidden)
-        possible_moves = layers.Reshape((8, 8), name="possible_moves")(pmoves)
+        pmoves, possible_moves = _branch(hidden, 4, "possible_moves")
+
         hidden = concatenate([hidden, pmoves])
 
         hidden = _residual(hidden)
@@ -63,7 +67,7 @@ class NN(object):
         model = Model(inputs=[position, ], outputs=[possible_moves, out_from, out_to])
         model.compile(optimizer=optimizer,
                       loss='categorical_crossentropy',
-                      loss_weights=[1.0, 1.0, 1.0],
+                      loss_weights=[1.0, 0.0, 0.0],
                       metrics=['categorical_accuracy'])
         plot_model(model, to_file='model.png', show_shapes=True)
         return model
@@ -74,16 +78,18 @@ class NN(object):
         return frm[0], tto[0], possible_moves[0]
 
     def learn(self, data, epochs, force_score=None):
-        # data: List[MoveRecord] = list(filter(lambda x: x.get_score() > 0.0, data))
+        if not data:
+            logging.warning("No data to train on")
+            return
 
         batch_len = len(data)
         inputs_pos = np.full((batch_len, 8, 8, 2, len(PIECE_TYPES)), 0)
         inputs = inputs_pos
 
-        possible_moves = np.full((batch_len, 8, 8), 0.0)
+        pos_moves = np.full((batch_len, 8, 8), 0.0)
         out_from = np.full((batch_len, 8, 8), 0.0)
         out_to = np.full((batch_len, 8, 8), 0.0)
-        outputs = [possible_moves, out_from, out_to]
+        outputs = [pos_moves, out_from, out_to]
 
         batch_n = 0
         rec: MoveRecord
@@ -93,12 +99,9 @@ class NN(object):
 
             inputs_pos[batch_n] = rec.position
 
-            possible_moves[batch_n] = np.reshape(rec.possible_moves, (-1, 8))
+            pos_moves[batch_n] = np.reshape(rec.possible_moves, (-1, 8))
             out_from[batch_n][square_file(rec.from_square)][square_rank(rec.from_square)] = score
             out_to[batch_n][square_file(rec.to_square)][square_rank(rec.to_square)] = score
-
-            # self._fill_eval(batch_n, out_evalb, rec['before'])
-            # self._fill_eval(batch_n, out_evala, rec['after'])
 
             batch_n += 1
 
@@ -108,10 +111,3 @@ class NN(object):
                               callbacks=cbs, verbose=2,
                               epochs=epochs, batch_size=128, )
         logging.debug("Trained: %s", res.history)
-
-    def _fill_eval(self, batch_n, out_evalb, rec):
-        material, mobility, attacks, threats = rec
-        out_evalb[batch_n][0] = material
-        out_evalb[batch_n][1] = mobility
-        out_evalb[batch_n][2] = attacks
-        out_evalb[batch_n][3] = threats

@@ -1,5 +1,6 @@
 import copy
 import json
+import logging
 import sys
 from collections import Counter
 
@@ -95,17 +96,34 @@ class BoardOptim(chess.Board):
         self._fens.pop(-1)
         return super().pop()
 
-    def get_position(self):
-        res = np.full((8, 8, 2, len(chess.PIECE_TYPES)), 0)
+    def get_info(self):
+        pos = np.full((8, 8, 2, len(chess.PIECE_TYPES)), 0)
+        attacked = np.full((8, 8,), 0)
+        defended = np.full((8, 8,), 0)
+        threatened = np.full((8, 8,), 0)
+        threats = np.full((8, 8,), 0)
         for square in chess.SQUARES:
             piece = self.piece_at(square)
 
             if not piece:
                 continue
 
-            res[square_file(square)][square_rank(square)][int(piece.color)][piece.piece_type - 1] = 1
-        res.flags.writeable = False
-        return res
+            pos[square_file(square)][square_rank(square)][int(piece.color)][piece.piece_type - 1] = 1
+
+            attackers = self.attackers(self.turn, square)
+            attacked[square_file(square)][square_rank(square)] |= bool(attackers) and piece.color != self.turn
+
+            defenders = self.attackers(self.turn, square)
+            defended[square_file(square)][square_rank(square)] |= bool(defenders) and piece.color == self.turn
+
+            threaters = self.attackers(not self.turn, square)
+            threatened[square_file(square)][square_rank(square)] |= bool(threaters) and piece.color == self.turn
+            if self.turn == piece.color:
+                for tsq in threaters:
+                    threats[square_file(tsq)][square_rank(tsq)] = 1
+
+        pos.flags.writeable = False
+        return pos, attacked, defended, threatened, threats
 
     def get_evals(self, fen):
         evals = [self._get_material_balance(fen), self._get_mobility(), self._get_attacks()]
@@ -143,26 +161,37 @@ class BoardOptim(chess.Board):
                 attacks += PIECE_MOBILITY[dest_piece.symbol().upper()]
         return attacks
 
-    def plot(self, possible_moves, caption):
-        if not is_debug():
+    def plot(self, matrix, position, caption):
+        if not is_debug() or self.fullmove_number < 1:
             return
 
-        img = pyplot.matshow(possible_moves)
+        img = pyplot.matshow(matrix)
 
         for square in chess.SQUARES:
-            piece = self.piece_at(square)
-
-            if not piece:
-                continue
-
             f = square_file(square)
             r = square_rank(square)
-            pyplot.text(r, f, chess.UNICODE_PIECE_SYMBOLS[piece.symbol().lower()],
-                        color="white" if piece.color == chess.WHITE else "black",
+            piece = position[f][r]  # self.piece_at(square)
+
+            if not piece.any():
+                continue
+
+            if piece[int(chess.WHITE)].any():
+                color = chess.WHITE
+                piece_type = np.argmax(piece[int(chess.WHITE)])
+            else:
+                color = chess.BLACK
+                piece_type = np.argmax(piece[int(chess.BLACK)])
+
+            piece_symbol = chess.PIECE_SYMBOLS[piece_type + 1]
+
+            pyplot.text(r, f, chess.UNICODE_PIECE_SYMBOLS[piece_symbol],
+                        color="white" if color == chess.WHITE else "black",
                         alpha=0.8, size="x-large", ha="center", va="center")
 
-        pyplot.title(caption)
+        pyplot.title(caption + " - " + chess.COLOR_NAMES[self.turn] + "#%d" % self.fullmove_number)
         pyplot.show()
+        if is_debug() and self.fullmove_number >= 2:
+            logging.debug("Stopping on move %s", self.fullmove_number)
 
 
 class MoveRecord(object):
@@ -175,6 +204,11 @@ class MoveRecord(object):
         self.position = position
         self.piece = piece
         self.possible_moves = possible_moves
+
+        self.attacked = None
+        self.defended = None
+        self.threatened = None
+        self.threats = None
 
         self.to_square = move.to_square
         self.from_square = move.from_square

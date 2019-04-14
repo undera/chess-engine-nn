@@ -6,7 +6,7 @@ from typing import Set
 
 from chess import STARTING_FEN, WHITE, BLACK
 
-from chessnn import BoardOptim, MoveRecord
+from chessnn import BoardOptim, MoveRecord, is_debug
 from chessnn.nn import NN
 from chessnn.player import Player
 
@@ -126,8 +126,9 @@ def play_with_score(pwhite, pblack):
 def play_per_turn(pwhite, pblack):
     dataset = DataSet("moves.pkl")
     dataset.load_moves()
-    pwhite.nn.learn(dataset.dataset, 50)
-    nn.save("nn.hdf5")
+    if not is_debug():
+        pwhite.nn.learn(dataset.dataset, 20)
+        nn.save("nn.hdf5")
 
     rnd = 0
     while True:
@@ -137,17 +138,19 @@ def play_per_turn(pwhite, pblack):
 
         rnd += 1
         if not (rnd % 20):
-            # dataset.dump_moves()
-
-            # break
-            nn.learn(dataset.dataset, 50)
-            # nn.save("nn.hdf5")
             break
+            dataset.dump_moves()
+
+            nn.learn(dataset.dataset, 20)
+            nn.save("nn.hdf5")
 
 
 if __name__ == "__main__":
     sys.setrecursionlimit(10000)
-    logging.basicConfig(level=logging.INFO)
+    mpl_logger = logging.getLogger('matplotlib')
+    mpl_logger.setLevel(logging.WARNING)
+
+    logging.basicConfig(level=logging.DEBUG if is_debug() else logging.INFO)
 
     nn = NN("nn.hdf5")
     white = Player(WHITE, nn)

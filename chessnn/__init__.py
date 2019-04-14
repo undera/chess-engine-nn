@@ -10,13 +10,13 @@ import xxhash
 from chess import pgn, square_file, square_rank
 from matplotlib import pyplot
 
-PIECE_MOBILITY = {
-    "P": 1,
-    "N": 3,
-    "B": 4,
-    "R": 6,
-    "Q": 10,
-    "K": 100,
+PIECE_VALUES = {
+    chess.PAWN: 1,
+    chess.KNIGHT: 3,
+    chess.BISHOP: 4,
+    chess.ROOK: 6,
+    chess.QUEEN: 10,
+    chess.KING: 100,
 }
 
 
@@ -102,11 +102,14 @@ class BoardOptim(chess.Board):
         defended = np.full((8, 8,), 0)
         threatened = np.full((8, 8,), 0)
         threats = np.full((8, 8,), 0)
+        material = 0
         for square in chess.SQUARES:
             piece = self.piece_at(square)
 
             if not piece:
                 continue
+
+            material += PIECE_VALUES[piece.piece_type] if piece.color == self.turn else -PIECE_VALUES[piece.piece_type]
 
             pos[square_file(square)][square_rank(square)][int(piece.color)][piece.piece_type - 1] = 1
 
@@ -123,7 +126,7 @@ class BoardOptim(chess.Board):
                     threats[square_file(tsq)][square_rank(tsq)] = 1
 
         pos.flags.writeable = False
-        return pos, attacked, defended, threatened, threats
+        return pos, attacked, defended, threatened, threats, material
 
     def get_evals(self, fen):
         evals = [self._get_material_balance(fen), self._get_mobility(), self._get_attacks()]
@@ -135,12 +138,12 @@ class BoardOptim(chess.Board):
     def _get_material_balance(self, fen):
         chars = Counter(fen)
         score = 0
-        for piece in PIECE_MOBILITY:
+        for piece in PIECE_VALUES:
             if piece in chars:
-                score += PIECE_MOBILITY[piece] * chars[piece]
+                score += PIECE_VALUES[piece] * chars[piece]
 
             if piece.lower() in chars:
-                score -= PIECE_MOBILITY[piece] * chars[piece.lower()]
+                score -= PIECE_VALUES[piece] * chars[piece.lower()]
 
         if self.turn == chess.WHITE:
             return score
@@ -158,7 +161,7 @@ class BoardOptim(chess.Board):
         for move in moves:
             dest_piece = self.piece_at(move.to_square)
             if dest_piece:
-                attacks += PIECE_MOBILITY[dest_piece.symbol().upper()]
+                attacks += PIECE_VALUES[dest_piece.symbol().upper()]
         return attacks
 
     def plot(self, matrix, position, caption):
@@ -209,11 +212,11 @@ class MoveRecord(object):
         self.defended = None
         self.threatened = None
         self.threats = None
+        self.from_round = 0
 
         self.to_square = move.to_square
         self.from_square = move.from_square
         self.kpis = [int(x) for x in kpis]
-        # TODO: add defences to KPIs
 
     def __str__(self) -> str:
         return json.dumps({x: y for x, y in self.__dict__.items() if x not in ('forced_score', 'kpis')})
@@ -244,33 +247,41 @@ class MoveRecord(object):
         if self.forced_score is not None:
             return self.forced_score
 
+        # material, attacks, defences, threats, threatened
+
         # first criteria
         if self.kpis[0] < 0:  # material loss
             return 0.0
 
-        if self.kpis[3] > 0:  # threats up
+        if self.kpis[4] > 0:  # threats up
+            return 0.0
+
+        if self.kpis[2] < 0:  # defence down
             return 0.0
 
         # second criteria
         if self.kpis[0] > 0:  # material up
             return 1.0
 
-        if self.kpis[3] < 0:  # threats down
+        if self.kpis[2] > 0:  # defence up
+            return 1.0
+
+        if self.kpis[4] < 0:  # threats down
             return 1.0
 
         # third criteria
-        if self.kpis[2] > 0:  # attack more
+        if self.kpis[1] > 0:  # attack more
             return 0.75
 
-        if self.kpis[2] < 0:  # attack less
+        if self.kpis[1] < 0:  # attack less
             return 0.0
 
         # fourth criteria
-        if self.kpis[1] > 0:  # mobility up
-            return 0.5
+        # if self.kpis[1] > 0:  # mobility up
+        #    return 0.5
 
-        if self.kpis[1] < 0:  # mobility down
-            return 0.0
+        # if self.kpis[1] < 0:  # mobility down
+        #    return 0.0
 
         # fifth criteria
         if self.piece == chess.PAWN:

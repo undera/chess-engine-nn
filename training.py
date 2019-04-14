@@ -24,9 +24,9 @@ def play_one_game(pwhite, pblack, rnd):
     pblack.board = board
 
     while True:  # and board.fullmove_number < 150
-        if not pwhite.makes_move():
+        if not pwhite.makes_move(rnd):
             break
-        if not pblack.makes_move():
+        if not pblack.makes_move(rnd):
             break
 
     board.write_pgn(os.path.join(os.path.dirname(__file__), "last.pgn"), rnd)
@@ -79,8 +79,8 @@ def set_to_file(draw, param):
 
 
 def play_with_score(pwhite, pblack):
-    winning: Set[MoveRecord] = set()
-    losing: Set[MoveRecord] = set()
+    winning = DataSet("winning.pkl")
+    losing = DataSet("losing.pkl")
     draw: Set[MoveRecord] = set()
 
     rnd = 0
@@ -102,24 +102,23 @@ def play_with_score(pwhite, pblack):
 
         rnd += 1
         if not (rnd % 20):
-            winning -= losing
-            winning -= draw
-            losing -= winning
-            losing -= draw
-            logging.info("Orig: %s %s %s", len(winning), len(losing), len(draw))
+            winning.dataset -= losing.dataset
+            winning.dataset -= draw
+            losing.dataset -= winning.dataset
+            losing.dataset -= draw
+            logging.info("Orig: %s %s %s", len(winning.dataset), len(losing.dataset), len(draw))
 
-            if not winning and not losing:
-                nn.learn(draw, 1, force_score=0.5)
+            if not winning.dataset and not losing.dataset:
+                nn.learn(draw, 1)
             else:
-                for x in winning:
+                for x in winning.dataset:
                     x.forced_score = 1.0
-                for x in losing:
+                for x in losing.dataset:
                     x.forced_score = 0.0
 
-                # dataset.update(pure_win)
-                # dataset.update(pure_loss)
-                # dataset.dump_moves()
-                nn.learn(winning | losing, 20)
+                winning.dump_moves()
+                losing.dump_moves()
+                nn.learn(winning.dataset | losing.dataset, 20)
                 nn.save("nn.hdf5")
 
 
@@ -134,11 +133,12 @@ def play_per_turn(pwhite, pblack):
     while True:
         result = play_one_game(pwhite, pblack, rnd)
 
-        dataset.update(pwhite.get_moves() + pblack.get_moves())
+        moves = pwhite.get_moves() + pblack.get_moves()
+        moves = list(filter(lambda x: x.get_score() > 0, moves))
+        dataset.update(moves)
 
         rnd += 1
         if not (rnd % 20):
-            break
             dataset.dump_moves()
 
             nn.learn(dataset.dataset, 20)
@@ -156,5 +156,5 @@ if __name__ == "__main__":
     white = Player(WHITE, nn)
     black = Player(BLACK, nn)
 
+    # play_per_turn(white, black)
     play_with_score(white, black)
-    #play_per_turn(white, black)

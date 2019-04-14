@@ -3,7 +3,7 @@ import logging
 import chess
 import numpy as np
 
-from chessnn import MoveRecord, BoardOptim, nn
+from chessnn import MoveRecord, BoardOptim, nn, is_debug
 
 
 class Player(object):
@@ -19,21 +19,22 @@ class Player(object):
         self.nn = net
         self.moves_log = []
 
-    def makes_move(self):
+    def makes_move(self, in_round):
         info = self.board.get_info() if self.color == chess.WHITE else self.board.mirror().get_info()
-        pos, attacked, defended, threatened, threats = info
-
-        self.board.plot(attacked, pos, "attacked")
-        self.board.plot(defended, pos, "defended")
-        self.board.plot(threats, pos, "threats")
-        self.board.plot(threatened, pos, "threatened")
+        pos, attacked, defended, threatened, threats, material = info
 
         move, possible_moves = self._choose_best_move(pos)
         move_rec = self._mirror_move(move) if self.color == chess.BLACK else move
 
         self.board.push(move)
 
-        balance = [0, 0, 0, 0]
+        self.board.turn = not self.board.turn
+        info = self.board.get_info()
+        apos, aattacked, adefended, athreatened, athreats, amaterial = info
+        self.board.turn = not self.board.turn
+
+        balance = [amaterial - material, attacked.sum() - aattacked.sum(), defended.sum() - adefended.sum(),
+                   threats.sum() - athreats.sum(), threatened.sum() - athreatened.sum()]  # TODO: lost mobility
 
         piece = self.board.piece_at(move.to_square)
         log_rec = MoveRecord(position=pos, move=move_rec, kpis=balance, piece=piece.piece_type,
@@ -42,6 +43,7 @@ class Player(object):
         log_rec.defended = defended
         log_rec.threatened = threatened
         log_rec.threats = threats
+        log_rec.from_round = in_round
 
         # logging.debug("%d. %s %s", self.board.fullmove_number, move, log_rec["score"])
         self.moves_log.append(log_rec)
@@ -49,13 +51,23 @@ class Player(object):
 
         not_over = move and not self.board.is_game_over(claim_draw=False)
 
+        if False:
+            self.board.plot(attacked, pos, "attacked")
+            self.board.plot(defended, pos, "defended")
+            self.board.plot(threats, pos, "threats")
+            self.board.plot(threatened, pos, "threatened")
+
+        if any(balance) and is_debug():
+            self.board.write_pgn("last.pgn", 0)
+
         return not_over
 
     def _choose_best_move(self, pos):
         wfrom, wto, pmoves, attacks, defences, threats, threatened = self.nn.query(pos[np.newaxis, ...])
 
-        self.board.plot(wfrom, pos, "wfrom")
-        self.board.plot(wto, pos, "wto")
+        if False:
+            self.board.plot(wfrom, pos, "wfrom")
+            self.board.plot(wto, pos, "wto")
 
         if self.color == chess.BLACK:
             wfrom = np.fliplr(wfrom)
@@ -71,12 +83,13 @@ class Player(object):
         if self.color == chess.BLACK:
             possible_moves = np.fliplr(possible_moves)
 
-        self.board.plot(attacks, pos, "attacks predicted")
-        self.board.plot(defences, pos, "defences predicted")
-        self.board.plot(threats, pos, "threats predicted")
-        self.board.plot(threatened, pos, "threatened predicted")
-        self.board.plot(pmoves, pos, "possible predicted")
-        self.board.plot(possible_moves, pos, "possible actual")
+        if False:
+            self.board.plot(attacks, pos, "attacks predicted")
+            self.board.plot(defences, pos, "defences predicted")
+            self.board.plot(threats, pos, "threats predicted")
+            self.board.plot(threatened, pos, "threatened predicted")
+            self.board.plot(pmoves, pos, "possible predicted")
+            self.board.plot(possible_moves, pos, "possible actual")
 
         if self.board.fullmove_number <= 1 and self.board.turn == chess.WHITE:
             logging.debug("Forcing first move to be #%d", self.start_from)
@@ -85,16 +98,17 @@ class Player(object):
         move_rating.sort(key=lambda w: w[1] * w[2], reverse=True)
 
         selected_move = move_rating[0][0] if move_rating else chess.Move.null()
-        for move, sw, dw in move_rating:
-            self.board.push(move)
-            try:
-                if self.board.can_claim_draw():
-                    continue
-            finally:
-                self.board.pop()
+        if False:
+            for move, sw, dw in move_rating:
+                self.board.push(move)
+                try:
+                    if self.board.can_claim_draw():
+                        continue
+                finally:
+                    self.board.pop()
 
-            selected_move = move
-            break
+                selected_move = move
+                break
         return selected_move, possible_moves
 
     def _gen_move_rating(self, weights_from, weights_to):

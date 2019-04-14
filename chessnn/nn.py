@@ -8,7 +8,6 @@ from keras import layers, Model, models
 from keras.callbacks import TensorBoard
 from keras.layers import concatenate
 from keras.utils import plot_model
-from tensorflow.contrib.fused_conv.python.ops.fused_conv2d_bias_activation_op_test_base import output_size_
 
 from chessnn import MoveRecord
 
@@ -60,16 +59,16 @@ class NN(object):
         threatened, out_threatened = _branch(iflat, 4, "threatened")
 
         bfrom = concatenate([iflat, defences, threatened])
-        bfrom, out_from = _branch(bfrom, 4, "from")
+        bfrom, out_from = _branch(bfrom, 8, "main_from")
 
         bto = concatenate([iflat, pmoves, attacks, threats])
-        bto, out_to = _branch(bto, 4, "to")
+        bto, out_to = _branch(bto, 8, "main_to")
 
         outputs = [out_from, out_to, out_pmoves, out_attacks, out_defences, out_threats, out_threatened]
         model = Model(inputs=[position, ], outputs=outputs)
         model.compile(optimizer=optimizer,
                       loss='categorical_crossentropy',
-                      # loss_weights=[1.0, 0.0, 0.0],
+                      loss_weights=[64.0, 64.0, 1.0, 1.0, 1.0, 1.0, 1.0],
                       metrics=['categorical_accuracy'])
         plot_model(model, to_file='model.png', show_shapes=True)
         return model
@@ -83,6 +82,8 @@ class NN(object):
         if not data:
             logging.warning("No data to train on")
             return
+
+        logging.info("Age: %d", min([x.from_round for x in data]))
 
         batch_len = len(data)
         inputs_pos = np.full((batch_len, 8, 8, 2, len(PIECE_TYPES)), 0)

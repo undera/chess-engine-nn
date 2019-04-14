@@ -4,7 +4,10 @@ import sys
 from collections import Counter
 
 import chess
-from chess import pgn
+import numpy as np
+import xxhash
+from chess import pgn, square_file, square_rank
+from matplotlib import pyplot
 
 PIECE_MOBILITY = {
     "P": 1,
@@ -92,15 +95,84 @@ class BoardOptim(chess.Board):
         self._fens.pop(-1)
         return super().pop()
 
+    def get_position(self):
+        res = np.full((8, 8, 2, len(chess.PIECE_TYPES)), 0)
+        for square in chess.SQUARES:
+            piece = self.piece_at(square)
+
+            if not piece:
+                continue
+
+            res[square_file(square)][square_rank(square)][int(piece.color)][piece.piece_type - 1] = 1
+        res.flags.writeable = False
+        return res
+
+    def get_evals(self, fen):
+        evals = [self._get_material_balance(fen), self._get_mobility(), self._get_attacks()]
+        self.turn = not self.turn
+        evals.append(self._get_attacks())
+        self.turn = not self.turn
+        return evals
+
+    def _get_material_balance(self, fen):
+        chars = Counter(fen)
+        score = 0
+        for piece in PIECE_MOBILITY:
+            if piece in chars:
+                score += PIECE_MOBILITY[piece] * chars[piece]
+
+            if piece.lower() in chars:
+                score -= PIECE_MOBILITY[piece] * chars[piece.lower()]
+
+        if self.turn == chess.WHITE:
+            return score
+        else:
+            return -score
+
+    def _get_mobility(self):
+        moves = list(self.generate_legal_moves())
+        mobility = len(moves)
+        return mobility
+
+    def _get_attacks(self):
+        attacks = 0
+        moves = list(self.generate_legal_moves())
+        for move in moves:
+            dest_piece = self.piece_at(move.to_square)
+            if dest_piece:
+                attacks += PIECE_MOBILITY[dest_piece.symbol().upper()]
+        return attacks
+
+    def plot(self, possible_moves, caption):
+        if not is_debug():
+            return
+
+        img = pyplot.matshow(possible_moves)
+
+        for square in chess.SQUARES:
+            piece = self.piece_at(square)
+
+            if not piece:
+                continue
+
+            f = square_file(square)
+            r = square_rank(square)
+            pyplot.text(r, f, chess.UNICODE_PIECE_SYMBOLS[piece.symbol().lower()],
+                        color="white" if piece.color == chess.WHITE else "black",
+                        alpha=0.8, size="x-large", ha="center", va="center")
+
+        pyplot.title(caption)
+        pyplot.show()
+
 
 class MoveRecord(object):
     piece: chess.Piece
 
-    def __init__(self, fen=None, move=None, kpis=None, piece=None, possible_moves=None) -> None:
+    def __init__(self, position=None, move=None, kpis=None, piece=None, possible_moves=None) -> None:
         super().__init__()
         self.forced_score = None
 
-        self.fen = fen
+        self.position = position
         self.piece = piece
         self.possible_moves = possible_moves
 
@@ -113,13 +185,20 @@ class MoveRecord(object):
         return json.dumps({x: y for x, y in self.__dict__.items() if x not in ('forced_score', 'kpis')})
 
     def __hash__(self):
-        return sum([hash(x) for x in (self.fen, self.to_square, self.from_square, self.piece)])
+        h = xxhash.xxh64()
+        h.update(self.position)
+        return sum([hash(x) for x in (h.intdigest(), self.to_square, self.from_square, self.piece)])
 
     def __eq__(self, o) -> bool:
         """
         :type o: MoveRecord
         """
-        return self.fen == o.fen and self.piece == o.piece and self.from_square == o.from_square and self.to_square == o.to_square
+        pself = xxhash.xxh64()
+        pself.update(self.position)
+        po = xxhash.xxh64()
+        po.update(o.position)
+
+        return pself.intdigest() == po.intdigest() and self.piece == o.piece and self.from_square == o.from_square and self.to_square == o.to_square
 
     def __ne__(self, o) -> bool:
         """
@@ -167,4 +246,4 @@ class MoveRecord(object):
 
 
 def is_debug():
-    return 'pydevd.py' in sys.argv[0]
+    return 'pydevd' in sys.modules

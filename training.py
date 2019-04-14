@@ -54,12 +54,11 @@ class DataSet(object):
         except:
             os.rename(self.fname + ".bak", self.fname)
 
-    def load_moves(self, net):
+    def load_moves(self):
         if os.path.exists(self.fname):
             with open(self.fname, 'rb') as fhd:
                 loaded = pickle.load(fhd)
                 self.dataset.update(loaded)
-                net.learn(self.dataset, 50)
 
     def update(self, moves):
         lprev = len(self.dataset)
@@ -126,8 +125,9 @@ def play_with_score(pwhite, pblack):
 
 def play_per_turn(pwhite, pblack):
     dataset = DataSet("moves.pkl")
-    dataset.load_moves(pwhite.nn)
-    return 0
+    dataset.load_moves()
+    pwhite.nn.learn(dataset.dataset, 50)
+    nn.save("nn.hdf5")
 
     rnd = 0
     while True:
@@ -137,10 +137,10 @@ def play_per_turn(pwhite, pblack):
 
         rnd += 1
         if not (rnd % 20):
-            dataset.dump_moves()
+            # dataset.dump_moves()
 
             # break
-            nn.learn(dataset.dataset, 20)
+            nn.learn(dataset.dataset, 50)
             # nn.save("nn.hdf5")
             break
 

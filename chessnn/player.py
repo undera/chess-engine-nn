@@ -52,7 +52,7 @@ class Player(object):
         return not_over
 
     def _choose_best_move(self, pos):
-        wfrom, wto, pos_moves = self.nn.query(pos[np.newaxis, ...])
+        wfrom, wto, pmoves, attacks, defences, threats, threatened = self.nn.query(pos[np.newaxis, ...])
 
         self.board.plot(wfrom, pos, "wfrom")
         self.board.plot(wto, pos, "wto")
@@ -71,7 +71,11 @@ class Player(object):
         if self.color == chess.BLACK:
             possible_moves = np.fliplr(possible_moves)
 
-        self.board.plot(pos_moves, pos, "possible predicted")
+        self.board.plot(attacks, pos, "attacks predicted")
+        self.board.plot(defences, pos, "defences predicted")
+        self.board.plot(threats, pos, "threats predicted")
+        self.board.plot(threatened, pos, "threatened predicted")
+        self.board.plot(pmoves, pos, "possible predicted")
         self.board.plot(possible_moves, pos, "possible actual")
 
         if self.board.fullmove_number <= 1 and self.board.turn == chess.WHITE:

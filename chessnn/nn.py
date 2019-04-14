@@ -8,6 +8,7 @@ from keras import layers, Model, models
 from keras.callbacks import TensorBoard
 from keras.layers import concatenate
 from keras.utils import plot_model
+from tensorflow.contrib.fused_conv.python.ops.fused_conv2d_bias_activation_op_test_base import output_size_
 
 from chessnn import MoveRecord
 
@@ -50,32 +51,33 @@ class NN(object):
             return odense, omatrix
 
         position = layers.Input(shape=(8, 8, 2, len(PIECE_TYPES),), name="position")
-        hidden = layers.Flatten()(position)
+        iflat = layers.Flatten()(position)
 
-        pmoves, possible_moves = _branch(hidden, 4, "possible_moves")
+        pmoves, out_pmoves = _branch(iflat, 4, "possible_moves")
+        attacks, out_attacks = _branch(iflat, 4, "attacks")
+        defences, out_defences = _branch(iflat, 4, "defences")
+        threats, out_threats = _branch(iflat, 4, "threats")
+        threatened, out_threatened = _branch(iflat, 4, "threatened")
 
-        hidden = concatenate([hidden, pmoves])
+        bfrom = concatenate([iflat, defences, threatened])
+        bfrom, out_from = _branch(bfrom, 4, "from")
 
-        hidden = _residual(hidden)
-        hidden = _residual(hidden)
+        bto = concatenate([iflat, pmoves, attacks, threats])
+        bto, out_to = _branch(bto, 4, "to")
 
-        out_from = layers.Dense(64, activation=activ_out, kernel_regularizer=reg)(hidden)
-        out_from = layers.Reshape((8, 8), name="from")(out_from)
-        out_to = layers.Dense(64, activation=activ_out, kernel_regularizer=reg)(hidden)
-        out_to = layers.Reshape((8, 8), name="to")(out_to)
-
-        model = Model(inputs=[position, ], outputs=[possible_moves, out_from, out_to])
+        outputs = [out_from, out_to, out_pmoves, out_attacks, out_defences, out_threats, out_threatened]
+        model = Model(inputs=[position, ], outputs=outputs)
         model.compile(optimizer=optimizer,
                       loss='categorical_crossentropy',
-                      loss_weights=[1.0, 0.0, 0.0],
+                      # loss_weights=[1.0, 0.0, 0.0],
                       metrics=['categorical_accuracy'])
         plot_model(model, to_file='model.png', show_shapes=True)
         return model
 
     def query(self, position):
-        possible_moves, frm, tto = self._model.predict_on_batch([position])
+        res = self._model.predict_on_batch([position])
 
-        return frm[0], tto[0], possible_moves[0]
+        return (x[0] for x in res)
 
     def learn(self, data, epochs, force_score=None):
         if not data:
@@ -86,10 +88,15 @@ class NN(object):
         inputs_pos = np.full((batch_len, 8, 8, 2, len(PIECE_TYPES)), 0)
         inputs = inputs_pos
 
-        pos_moves = np.full((batch_len, 8, 8), 0.0)
         out_from = np.full((batch_len, 8, 8), 0.0)
         out_to = np.full((batch_len, 8, 8), 0.0)
-        outputs = [pos_moves, out_from, out_to]
+        pmoves = np.full((batch_len, 8, 8), 0.0)
+        attacks = np.full((batch_len, 8, 8), 0.0)
+        defences = np.full((batch_len, 8, 8), 0.0)
+        threats = np.full((batch_len, 8, 8), 0.0)
+        threatened = np.full((batch_len, 8, 8), 0.0)
+
+        outputs = [out_from, out_to, pmoves, attacks, defences, threats, threatened]
 
         batch_n = 0
         rec: MoveRecord
@@ -99,9 +106,14 @@ class NN(object):
 
             inputs_pos[batch_n] = rec.position
 
-            pos_moves[batch_n] = np.reshape(rec.possible_moves, (-1, 8))
             out_from[batch_n][square_file(rec.from_square)][square_rank(rec.from_square)] = score
             out_to[batch_n][square_file(rec.to_square)][square_rank(rec.to_square)] = score
+
+            pmoves[batch_n] = np.reshape(rec.possible_moves, (-1, 8))
+            attacks[batch_n] = np.reshape(rec.attacked, (-1, 8))
+            defences[batch_n] = np.reshape(rec.defended, (-1, 8))
+            threats[batch_n] = np.reshape(rec.threats, (-1, 8))
+            threatened[batch_n] = np.reshape(rec.threatened, (-1, 8))
 
             batch_n += 1
 

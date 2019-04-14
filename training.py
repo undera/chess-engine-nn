@@ -109,7 +109,7 @@ def play_with_score(pwhite, pblack):
             logging.info("Orig: %s %s %s", len(winning), len(losing), len(draw))
 
             if not winning and not losing:
-                nn.learn(draw, 1)
+                nn.learn(draw, 1, force_score=0.5)
             else:
                 for x in winning:
                     x.forced_score = 1.0
@@ -120,7 +120,7 @@ def play_with_score(pwhite, pblack):
                 # dataset.update(pure_loss)
                 # dataset.dump_moves()
                 nn.learn(winning | losing, 20)
-                # nn.save("nn.hdf5")
+                nn.save("nn.hdf5")
 
 
 def play_per_turn(pwhite, pblack):
@@ -156,4 +156,5 @@ if __name__ == "__main__":
     white = Player(WHITE, nn)
     black = Player(BLACK, nn)
 
-    play_per_turn(white, black)
+    play_with_score(white, black)
+    #play_per_turn(white, black)

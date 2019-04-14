@@ -1,13 +1,11 @@
 import logging
 import os
 import time
-from collections import Counter
-from typing import List
 
 import numpy as np
 from keras import layers, Model, models
 from keras.callbacks import TensorBoard
-from keras.regularizers import l2
+from keras.layers import concatenate
 from keras.utils import plot_model
 
 from chessnn import MoveRecord
@@ -32,35 +30,50 @@ class NN(object):
 
     def _get_nn(self):
         reg = None  # l2(0.0001)
-        kernel = 8 * 8 * 4
-        activ_hidden = "relu"  # linear relu elu sigmoid tanh softmax
+        kernel = 8 * 8 * 2
+        activ_hidden = "sigmoid"  # linear relu elu sigmoid tanh softmax
+        activ_out = "softmax"  # linear relu elu sigmoid tanh softmax
         optimizer = "nadam"  # sgd rmsprop adagrad adadelta adamax adam nadam
 
-        positions = layers.Input(shape=(8 * 8 * len(PIECE_MAP),), name="positions")
-        hidden = layers.Dense(kernel, activation=activ_hidden, kernel_regularizer=reg)(positions)
-        hidden = layers.Dense(kernel, activation=activ_hidden, kernel_regularizer=reg)(hidden)
-        hidden = layers.Dense(kernel, activation=activ_hidden, kernel_regularizer=reg)(hidden)
-        hidden = layers.Dense(kernel, activation=activ_hidden, kernel_regularizer=reg)(hidden)
-        hidden = layers.Dense(kernel, activation=activ_hidden, kernel_regularizer=reg)(hidden)
-        hidden = layers.Dense(kernel, activation=activ_hidden, kernel_regularizer=reg)(hidden)
-        hidden = layers.Dense(kernel, activation=activ_hidden, kernel_regularizer=reg)(hidden)
+        def _residual(inp):
+            out = layers.Dense(kernel, activation=activ_hidden)(inp)
+            return concatenate([inp, out])
 
-        out_from = layers.Dense(64, activation="softmax", name="from")(hidden)
-        out_to = layers.Dense(64, activation="softmax", name="to")(hidden)
+        positions = layers.Input(shape=(8, 8, len(PIECE_MAP),), name="positions")
+        hidden = layers.Flatten()(positions)
+        hidden = _residual(hidden)
+        hidden = _residual(hidden)
+        hidden = _residual(hidden)
+        hidden = _residual(hidden)
+        hidden = _residual(hidden)
+        hidden = _residual(hidden)
+        hidden = _residual(hidden)
 
-        model = Model(inputs=[positions, ], outputs=[out_from, out_to])
+        pmoves = layers.Dense(64, activation=activ_out, kernel_regularizer=reg)(hidden)
+        possible_moves = layers.Reshape((8, 8), name="possible_moves")(pmoves)
+        hidden = concatenate([hidden, pmoves])
+
+        hidden = _residual(hidden)
+        #hidden = _residual(hidden)
+
+        out_from = layers.Dense(64, activation=activ_out, kernel_regularizer=reg)(hidden)
+        out_from = layers.Reshape((8, 8), name="from")(out_from)
+        out_to = layers.Dense(64, activation=activ_out, kernel_regularizer=reg)(hidden)
+        out_to = layers.Reshape((8, 8), name="to")(out_to)
+
+        model = Model(inputs=[positions, ], outputs=[possible_moves, out_from, out_to])
         model.compile(optimizer=optimizer,
                       loss='categorical_crossentropy',
-                      loss_weights=[1.0, 1.0],
+                      loss_weights=[1.0, 0.01, 0.01],
                       metrics=['categorical_accuracy'])
         plot_model(model, to_file='model.png', show_shapes=True)
         return model
 
     def query(self, fen):
         position = self._fen_to_array(fen).flatten()[np.newaxis, ...]
-        frm, tto = self._model.predict_on_batch([position])
+        possible_moves, frm, tto = self._model.predict_on_batch([position])
 
-        return np.reshape(frm[0], (-1, 8)), np.reshape(tto[0], (-1, 8))
+        return frm[0], tto[0]
 
     def _fen_to_array(self, fen):
         piece_placement = np.full((8, 8, 12), 0)  # rank, col, piece kind
@@ -87,25 +100,25 @@ class NN(object):
         # data: List[MoveRecord] = list(filter(lambda x: x.get_score() > 0.0, data))
 
         batch_len = len(data)
-        inputs_pos = np.full((batch_len, 8 * 8 * 12), 0)
+        inputs_pos = np.full((batch_len, 8, 8, 12), 0)
         inputs = inputs_pos
 
-        out_from = np.full((batch_len, 64,), 0.0)
-        out_to = np.full((batch_len, 64,), 0.0)
-        outputs = [out_from, out_to]
+        possible_moves = np.full((batch_len, 8, 8), 0.0)
+        out_from = np.full((batch_len, 8, 8), 0.0)
+        out_to = np.full((batch_len, 8, 8), 0.0)
+        outputs = [possible_moves, out_from, out_to]
 
         batch_n = 0
+        rec: MoveRecord
         for rec in data:
             score = rec.get_score() if force_score is None else force_score
             assert score is not None
 
-            inputs_pos[batch_n] = self._fen_to_array(rec.fen).flatten()
+            inputs_pos[batch_n] = self._fen_to_array(rec.fen)
 
-            out_from[batch_n] = np.full((64,), 0.0)
-            out_to[batch_n] = np.full((64,), 0.0)
-
-            out_from[batch_n][rec.from_square] = score
-            out_to[batch_n][rec.to_square] = score
+            possible_moves[batch_n] = np.reshape(rec.possible_moves, (-1, 8))
+            # out_from[batch_n][rec.from_square] = score
+            # out_to[batch_n][rec.to_square] = score
 
             # self._fill_eval(batch_n, out_evalb, rec['before'])
             # self._fill_eval(batch_n, out_evala, rec['after'])

@@ -117,3 +117,8 @@ No matter what I did, the best accuracy I get from NN is 0.5, which is equal to 
 I see that "noisy moves" from draws affect NN learning in a bad way. Same for pointless moves along games with victories. Those moves don't lead to victory as much. So maybe if learning moves for NN would be chosen more selectively, it would help. Will try it in the morning (00:27 now)...
 
 Well, I experimented whole day and the result didn't change. Still stupid moves.
+
+### 14 Apr 2019
+
+OpenAI has beaten humans in Dota2. This world is doomed. Let's not postpone the unavoidable, I need to find my way to make this chess engine at least a bit smart.
+Current idea is to introduce "intermediary goals" of "possible moves", "attacks", "threats" as auxillary output layers. Maybe even "defended pieces". Let's see if NN can learn these simple position analysis concepts.

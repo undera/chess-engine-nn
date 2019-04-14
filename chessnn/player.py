@@ -1,5 +1,4 @@
 from collections import Counter
-from random import shuffle
 
 import chess
 import numpy as np
@@ -22,7 +21,7 @@ class Player(object):
 
     def makes_move(self):
         fen = self.board.board_fen() if self.color == chess.WHITE else self.board.mirror().board_fen()
-        move = self._choose_best_move(fen)
+        move, possible_moves = self._choose_best_move(fen)
         move_rec = self._mirror_move(move) if self.color == chess.BLACK else move
 
         before = self._get_evals(self.board.board_fen())
@@ -34,7 +33,8 @@ class Player(object):
         self.board.turn = not self.board.turn
         piece = self.board.piece_at(move.to_square)
         balance = np.subtract(after, before)
-        log_rec = MoveRecord(fen=fen, move=move_rec, kpis=balance, piece=piece.piece_type)
+        log_rec = MoveRecord(fen=fen, move=move_rec, kpis=balance, piece=piece.piece_type,
+                             possible_moves=possible_moves)
 
         # logging.debug("%d. %s %s", self.board.fullmove_number, move, log_rec["score"])
         self.moves_log.append(log_rec)
@@ -51,14 +51,23 @@ class Player(object):
         return evals
 
     def _choose_best_move(self, fen):
-        weights_from, weights_to = self.nn.query(fen)
+        wfrom, wto = self.nn.query(fen)
         if self.color == chess.BLACK:
-            weights_from = np.flipud(weights_from)
-            weights_to = np.flipud(weights_to)
+            wfrom = np.reshape(wfrom, (-1, 8))
+            wto = np.reshape(wto, (-1, 8))
 
-        move_rating = self._gen_move_rating(weights_from, weights_to)
+            wfrom = np.flipud(wfrom).flatten()
+            wto = np.flipud(wto).flatten()
+
+        move_rating = self._gen_move_rating(wfrom, wto)
+
+        possible_moves = np.full((64,), 0)
+        for x in move_rating:
+            possible_moves[x[0].to_square] = 1
+        assert sum(possible_moves) > 0
+
         if self.board.fullmove_number <= 1 and self.board.turn == chess.WHITE:
-            return move_rating[self.start_from][0]
+            return move_rating[self.start_from][0], possible_moves
 
         move_rating.sort(key=lambda x: x[1] * x[2], reverse=True)
 
@@ -73,18 +82,13 @@ class Player(object):
 
             selected_move = move
             break
-        return selected_move
+        return selected_move, possible_moves
 
     def _gen_move_rating(self, weights_from, weights_to):
         move_rating = []
         for move in self.board.generate_legal_moves():
-            sr = move.from_square // 8
-            sf = move.from_square % 8
-            sw = weights_from[sr][sf]
-
-            dr = move.to_square // 8
-            df = move.to_square % 8
-            dw = weights_to[dr][df]
+            sw = weights_from[move.from_square]
+            dw = weights_to[move.to_square]
 
             move_rating.append((move, sw, dw))
         return move_rating

@@ -1,5 +1,6 @@
 import copy
 import json
+import sys
 from collections import Counter
 
 import chess
@@ -95,11 +96,14 @@ class BoardOptim(chess.Board):
 class MoveRecord(object):
     piece: chess.Piece
 
-    def __init__(self, fen=None, move=None, kpis=None, piece=None) -> None:
+    def __init__(self, fen=None, move=None, kpis=None, piece=None, possible_moves=None) -> None:
         super().__init__()
         self.forced_score = None
+
         self.fen = fen
         self.piece = piece
+        self.possible_moves = possible_moves
+
         self.to_square = move.to_square
         self.from_square = move.from_square
         self.kpis = [int(x) for x in kpis]
@@ -160,3 +164,7 @@ class MoveRecord(object):
             return 0.1
 
         return 0.0
+
+
+def is_debug():
+    return 'pydevd.py' in sys.argv[0]

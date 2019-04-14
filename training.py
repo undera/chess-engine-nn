@@ -16,10 +16,11 @@ def play_one_game(pwhite, pblack, rnd):
 
     :type pwhite: Player
     :type pblack: Player
+    :type rnd: int
     """
     board = BoardOptim(STARTING_FEN)
     pwhite.board = board
-    pwhite.start_from = (rnd - 1) % 20
+    pwhite.start_from = rnd % 20
     pblack.board = board
 
     while True:  # and board.fullmove_number < 150
@@ -39,7 +40,6 @@ def play_one_game(pwhite, pblack, rnd):
 
 
 class DataSet(object):
-
     def __init__(self, fname) -> None:
         super().__init__()
         self.fname = fname
@@ -60,19 +60,16 @@ class DataSet(object):
                 loaded = pickle.load(fhd)
                 self.dataset.update(loaded)
                 net.learn(self.dataset, 50)
-                # net.save("nn.hdf5")
 
     def update(self, moves):
-        # moves = list(filter(lambda x: x.get_score() > 0.0, moves))
         lprev = len(self.dataset)
         self.dataset.update(moves)
-        # assert not l1 or len(self.dataset) < l1 + len(moves)
         if len(self.dataset) - lprev < len(moves):
-            logging.info("partial increase")
+            logging.debug("partial increase")
         elif len(self.dataset) - lprev == len(moves):
-            logging.info("full increase")
+            logging.debug("full increase")
         else:
-            logging.info("no increase")
+            logging.debug("no increase")
 
 
 def set_to_file(draw, param):
@@ -82,18 +79,13 @@ def set_to_file(draw, param):
         fhd.writelines(lines)
 
 
-def play(pwhite, pblack):
-    dataset = DataSet("moves.pkl")
-    dataset.load_moves(pwhite.nn)
-    # return
-
+def play_with_score(pwhite, pblack):
     winning: Set[MoveRecord] = set()
     losing: Set[MoveRecord] = set()
     draw: Set[MoveRecord] = set()
 
     rnd = 0
     while True:
-        rnd += 1
         result = play_one_game(pwhite, pblack, rnd)
 
         wmoves = pwhite.get_moves()
@@ -109,6 +101,7 @@ def play(pwhite, pblack):
             draw.update(wmoves)
             draw.update(bmoves)
 
+        rnd += 1
         if not (rnd % 20):
             winning -= losing
             winning -= draw
@@ -134,20 +127,22 @@ def play(pwhite, pblack):
 def play_per_turn(pwhite, pblack):
     dataset = DataSet("moves.pkl")
     dataset.load_moves(pwhite.nn)
+    return 0
 
     rnd = 0
     while True:
-        rnd += 1
         result = play_one_game(pwhite, pblack, rnd)
 
         dataset.update(pwhite.get_moves() + pblack.get_moves())
 
+        rnd += 1
         if not (rnd % 20):
             dataset.dump_moves()
 
             # break
-            nn.learn(dataset, 20)
+            nn.learn(dataset.dataset, 20)
             # nn.save("nn.hdf5")
+            break
 
 
 if __name__ == "__main__":
@@ -158,4 +153,4 @@ if __name__ == "__main__":
     white = Player(WHITE, nn)
     black = Player(BLACK, nn)
 
-    play(white, black)
+    play_per_turn(white, black)

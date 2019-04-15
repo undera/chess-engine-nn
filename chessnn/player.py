@@ -98,11 +98,11 @@ class Player(object):
         move_rating.sort(key=lambda w: w[1] * w[2], reverse=True)
 
         selected_move = move_rating[0][0] if move_rating else chess.Move.null()
-        if False:
+        if True:
             for move, sw, dw in move_rating:
                 self.board.push(move)
                 try:
-                    if self.board.can_claim_draw():
+                    if self.board.can_claim_threefold_repetition():
                         continue
                 finally:
                     self.board.pop()

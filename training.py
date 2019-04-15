@@ -1,6 +1,7 @@
 import logging
 import os
 import pickle
+import random
 import sys
 from typing import Set
 
@@ -80,20 +81,25 @@ def set_to_file(draw, param):
 
 def play_with_score(pwhite, pblack):
     winning = DataSet("winning.pkl")
+    winning.load_moves()
     losing = DataSet("losing.pkl")
+    losing.load_moves()
     draw: Set[MoveRecord] = set()
 
     rnd = 0
     while True:
+        had_decisive = False
         result = play_one_game(pwhite, pblack, rnd)
 
         wmoves = pwhite.get_moves()
         bmoves = pblack.get_moves()
 
         if result == '1-0':
+            had_decisive = True
             winning.update(wmoves)
             losing.update(bmoves)
         elif result == '0-1':
+            had_decisive = True
             winning.update(bmoves)
             losing.update(wmoves)
         else:
@@ -118,8 +124,14 @@ def play_with_score(pwhite, pblack):
 
                 winning.dump_moves()
                 losing.dump_moves()
-                nn.learn(winning.dataset | losing.dataset, 20)
+                dataset = winning.dataset | losing.dataset
+                if not had_decisive:
+                    lst = list(draw)
+                    random.shuffle(lst)
+                    dataset.update(lst[:500])
+                nn.learn(dataset, 20)
                 nn.save("nn.hdf5")
+                draw = set()
 
 
 def play_per_turn(pwhite, pblack):
@@ -129,7 +141,7 @@ def play_per_turn(pwhite, pblack):
         pwhite.nn.learn(dataset.dataset, 20)
         nn.save("nn.hdf5")
 
-    rnd = 0
+    rnd = max([x.from_round for x in dataset.dataset]) if dataset.dataset else 0
     while True:
         result = play_one_game(pwhite, pblack, rnd)
 
@@ -156,5 +168,5 @@ if __name__ == "__main__":
     white = Player(WHITE, nn)
     black = Player(BLACK, nn)
 
-    # play_per_turn(white, black)
-    play_with_score(white, black)
+    play_per_turn(white, black)
+    # play_with_score(white, black)

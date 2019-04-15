@@ -122,3 +122,9 @@ Well, I experimented whole day and the result didn't change. Still stupid moves.
 
 OpenAI has beaten humans in Dota2. This world is doomed. Let's not postpone the unavoidable, I need to find my way to make this chess engine at least a bit smart.
 Current idea is to introduce "intermediary goals" of "possible moves", "attacks", "threats" as auxillary output layers. Maybe even "defended pieces". Let's see if NN can learn these simple position analysis concepts.
+
+... so, after day of coding, I've implemeted this approach. It is not clear if it is viable or not yet. The good outcome is that I've found a number of severe bugs and fixed them. Those bugs happened because of "single NN for both White and Black", a lot of confusion is there in the code to juggle sides. Cool thing is now I have visualization for model outputs. It will train overnight, though I don't expect outstanding results.
+
+### 15 Apr 2019
+
+After night of training, it has reached  slightly above 50% accuracy for choosing moves, but that's not much, since there are lots of repetitions and overall quality of moves is low. Still, it is better than what we had in the past.

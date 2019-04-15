@@ -7,6 +7,7 @@ from chess import PIECE_TYPES, square_file, square_rank
 from keras import layers, Model, models
 from keras.callbacks import TensorBoard
 from keras.layers import concatenate
+from keras.regularizers import l2
 from keras.utils import plot_model
 
 from chessnn import MoveRecord
@@ -31,7 +32,7 @@ class NN(object):
         self._model.save(filename, overwrite=True)
 
     def _get_nn(self):
-        reg = None  # l2(0.0001)
+        reg = l2(0.0001)
         kernel = 8 * 8 * 2
         activ_hidden = "sigmoid"  # linear relu elu sigmoid tanh softmax
         activ_out = "softmax"  # linear relu elu sigmoid tanh softmax
@@ -52,23 +53,23 @@ class NN(object):
         position = layers.Input(shape=(8, 8, 2, len(PIECE_TYPES),), name="position")
         iflat = layers.Flatten()(position)
 
-        pmoves, out_pmoves = _branch(iflat, 4, "possible_moves")
-        attacks, out_attacks = _branch(iflat, 4, "attacks")
-        defences, out_defences = _branch(iflat, 4, "defences")
-        threats, out_threats = _branch(iflat, 4, "threats")
-        threatened, out_threatened = _branch(iflat, 4, "threatened")
+        pmoves, out_pmoves = _branch(iflat, 2, "possible_moves")
+        attacks, out_attacks = _branch(iflat, 2, "attacks")
+        defences, out_defences = _branch(iflat, 2, "defences")
+        threats, out_threats = _branch(iflat, 2, "threats")
+        threatened, out_threatened = _branch(iflat, 2, "threatened")
 
         bfrom = concatenate([iflat, defences, threatened])
-        bfrom, out_from = _branch(bfrom, 8, "main_from")
+        bfrom, out_from = _branch(bfrom, 4, "main_from")
 
         bto = concatenate([iflat, pmoves, attacks, threats])
-        bto, out_to = _branch(bto, 8, "main_to")
+        bto, out_to = _branch(bto, 4, "main_to")
 
         outputs = [out_from, out_to, out_pmoves, out_attacks, out_defences, out_threats, out_threatened]
         model = Model(inputs=[position, ], outputs=outputs)
         model.compile(optimizer=optimizer,
                       loss='categorical_crossentropy',
-                      loss_weights=[64.0, 64.0, 1.0, 1.0, 1.0, 1.0, 1.0],
+                      loss_weights=[1000.0, 1000.0, 1.0, 1.0, 1.0, 1.0, 1.0],
                       metrics=['categorical_accuracy'])
         plot_model(model, to_file='model.png', show_shapes=True)
         return model

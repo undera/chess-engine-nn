@@ -2,8 +2,9 @@ import logging
 
 import chess
 import numpy as np
+import random
 
-from chessnn import MoveRecord, BoardOptim, nn, is_debug
+from chessnn import MoveRecord, BoardOptim, nn
 
 
 class Player(object):
@@ -15,7 +16,7 @@ class Player(object):
         self.color = color
         # noinspection PyTypeChecker
         self.board = None
-        self.start_from = 0
+        self.start_from = (0, 0)
         self.nn = net
         self.moves_log = []
 
@@ -33,8 +34,8 @@ class Player(object):
         apos, aattacked, adefended, athreatened, athreats, amaterial = info
         self.board.turn = not self.board.turn
 
-        balance = [amaterial - material, attacked.sum() - aattacked.sum(), defended.sum() - adefended.sum(),
-                   threats.sum() - athreats.sum(), threatened.sum() - athreatened.sum()]  # TODO: lost mobility
+        balance = [amaterial - material, aattacked.sum() - attacked.sum(), defended.sum() - adefended.sum(),
+                   athreats.sum() - threats.sum(), athreatened.sum() - threatened.sum()]  # TODO: lost mobility
 
         piece = self.board.piece_at(move.to_square)
         log_rec = MoveRecord(position=pos, move=move_rec, kpis=balance, piece=piece.piece_type,
@@ -57,13 +58,13 @@ class Player(object):
             self.board.plot(threats, pos, "threats")
             self.board.plot(threatened, pos, "threatened")
 
-        if any(balance) and is_debug():
-            self.board.write_pgn("last.pgn", 0)
+        # if any(balance) and is_debug():
+        #    self.board.write_pgn("last.pgn", 0)
 
         return not_over
 
     def _choose_best_move(self, pos):
-        wfrom, wto, pmoves, attacks, defences, threats, threatened = self.nn.query(pos[np.newaxis, ...])
+        wfrom, wto, pmoves, attacks, defences, threats, threatened = self.nn.query(pos[np.newaxis, ...])  #
 
         if False:
             self.board.plot(wfrom, pos, "wfrom")
@@ -91,14 +92,17 @@ class Player(object):
             self.board.plot(pmoves, pos, "possible predicted")
             self.board.plot(possible_moves, pos, "possible actual")
 
-        if self.board.fullmove_number <= 1 and self.board.turn == chess.WHITE:
-            logging.debug("Forcing first move to be #%d", self.start_from)
-            return move_rating[self.start_from][0], possible_moves
+        if self.board.fullmove_number <= self.start_from[1] + 1 and self.board.turn == chess.WHITE:
+            logging.debug("Forcing %s move to be #%s", self.board.fullmove_number, self.start_from)
+            if self.board.fullmove_number == 1:
+                return move_rating[self.start_from[0]][0], possible_moves
+            else:
+                return random.choice(move_rating)[0], possible_moves
 
         move_rating.sort(key=lambda w: w[1] * w[2], reverse=True)
 
         selected_move = move_rating[0][0] if move_rating else chess.Move.null()
-        if True:
+        if False:
             for move, sw, dw in move_rating:
                 self.board.push(move)
                 try:

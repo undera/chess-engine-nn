@@ -32,8 +32,8 @@ class NN(object):
         self._model.save(filename, overwrite=True)
 
     def _get_nn(self):
-        reg = l2(0.0001)
-        kernel = 8 * 8 * 2
+        reg = None  # l2(0.0001)
+        kernel = 8 * 8
         activ_hidden = "sigmoid"  # linear relu elu sigmoid tanh softmax
         activ_out = "softmax"  # linear relu elu sigmoid tanh softmax
         optimizer = "nadam"  # sgd rmsprop adagrad adadelta adamax adam nadam
@@ -53,17 +53,17 @@ class NN(object):
         position = layers.Input(shape=(8, 8, 2, len(PIECE_TYPES),), name="position")
         iflat = layers.Flatten()(position)
 
-        pmoves, out_pmoves = _branch(iflat, 2, "possible_moves")
-        attacks, out_attacks = _branch(iflat, 2, "attacks")
-        defences, out_defences = _branch(iflat, 2, "defences")
-        threats, out_threats = _branch(iflat, 2, "threats")
-        threatened, out_threatened = _branch(iflat, 2, "threatened")
+        pmoves, out_pmoves = _branch(iflat, 4, "possible_moves")
+        attacks, out_attacks = _branch(iflat, 4, "attacks")
+        defences, out_defences = _branch(iflat, 4, "defences")
+        threats, out_threats = _branch(iflat, 4, "threats")
+        threatened, out_threatened = _branch(iflat, 4, "threatened")
 
         bfrom = concatenate([iflat, defences, threatened])
-        bfrom, out_from = _branch(bfrom, 4, "main_from")
+        bfrom, out_from = _branch(bfrom, 8, "main_from")
 
         bto = concatenate([iflat, pmoves, attacks, threats])
-        bto, out_to = _branch(bto, 4, "main_to")
+        bto, out_to = _branch(bto, 8, "main_to")
 
         outputs = [out_from, out_to, out_pmoves, out_attacks, out_defences, out_threats, out_threatened]
         model = Model(inputs=[position, ], outputs=outputs)
@@ -83,8 +83,6 @@ class NN(object):
         if not data:
             logging.warning("No data to train on")
             return
-
-        logging.info("Age: %d", min([x.from_round for x in data]))
 
         batch_len = len(data)
         inputs_pos = np.full((batch_len, 8, 8, 2, len(PIECE_TYPES)), 0)
@@ -121,7 +119,7 @@ class NN(object):
 
         cbs = [TensorBoard('/tmp/tensorboard/%d' % time.time())] if epochs > 1 else []
         res = self._model.fit(inputs, outputs,
-                              validation_split=0.1, shuffle=True,
+                              # validation_split=0.1, shuffle=True,
                               callbacks=cbs, verbose=2,
                               epochs=epochs, batch_size=128, )
         logging.debug("Trained: %s", res.history)

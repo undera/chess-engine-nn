@@ -12,7 +12,7 @@ from chessnn.nn import NN
 from chessnn.player import Player
 
 
-def play_one_game(pwhite, pblack, rnd):
+def play_one_game(pwhite, pblack, rnd, non_decisive_cnt=0):
     """
 
     :type pwhite: Player
@@ -21,7 +21,7 @@ def play_one_game(pwhite, pblack, rnd):
     """
     board = BoardOptim(STARTING_FEN)
     pwhite.board = board
-    pwhite.start_from = rnd % 20
+    pwhite.start_from = (rnd % 20, non_decisive_cnt)
     pblack.board = board
 
     while True:  # and board.fullmove_number < 150
@@ -87,19 +87,24 @@ def play_with_score(pwhite, pblack):
     draw: Set[MoveRecord] = set()
 
     rnd = 0
+    non_decisive_cnt = 0
+    had_decisive = False
     while True:
-        had_decisive = False
-        result = play_one_game(pwhite, pblack, rnd)
+        result = play_one_game(pwhite, pblack, rnd, non_decisive_cnt)
 
         wmoves = pwhite.get_moves()
         bmoves = pblack.get_moves()
 
         if result == '1-0':
             had_decisive = True
+            for x, move in enumerate(wmoves):
+                move.forced_score = float(x) / len(wmoves)
             winning.update(wmoves)
             losing.update(bmoves)
         elif result == '0-1':
             had_decisive = True
+            for x, move in enumerate(bmoves):
+                move.forced_score = float(x) / len(bmoves)
             winning.update(bmoves)
             losing.update(wmoves)
         else:
@@ -109,29 +114,46 @@ def play_with_score(pwhite, pblack):
         rnd += 1
         if not (rnd % 20):
             winning.dataset -= losing.dataset
-            winning.dataset -= draw
+            # winning.dataset -= draw
             losing.dataset -= winning.dataset
-            losing.dataset -= draw
-            logging.info("Orig: %s %s %s", len(winning.dataset), len(losing.dataset), len(draw))
+            # losing.dataset -= draw
 
-            if not winning.dataset and not losing.dataset:
-                nn.learn(draw, 1)
+            if not had_decisive:
+                non_decisive_cnt += 1
             else:
-                for x in winning.dataset:
-                    x.forced_score = 1.0
-                for x in losing.dataset:
-                    x.forced_score = 0.0
+                non_decisive_cnt = 0
 
-                winning.dump_moves()
-                losing.dump_moves()
-                dataset = winning.dataset | losing.dataset
-                if not had_decisive:
-                    lst = list(draw)
-                    random.shuffle(lst)
-                    dataset.update(lst[:500])
+            while len(winning.dataset) > 10000:
+                mmin = max([x.from_round for x in winning.dataset])
+                for x in list(winning.dataset):
+                    if x.from_round <= mmin:
+                        winning.dataset.remove(x)
+
+            logging.info("W: %s\tL: %s\tD: %s\tNon-dec: %s", len(winning.dataset), len(losing.dataset), len(draw),
+                         non_decisive_cnt)
+
+            # for x in winning.dataset:
+            #    x.forced_score = 1.0
+
+            # for x in losing.dataset:
+            #    x.forced_score = 0.0
+
+            winning.dump_moves()
+            losing.dump_moves()
+            dataset = winning.dataset  # | losing.dataset
+
+            lst = list(draw)
+            for x in lst:
+                x.forced_score = 0  # random.random()
+            random.shuffle(lst)
+            dataset.update(lst[:10 * non_decisive_cnt])
+
+            if had_decisive or not non_decisive_cnt % 5:
                 nn.learn(dataset, 20)
                 nn.save("nn.hdf5")
-                draw = set()
+
+            draw = set()
+            had_decisive = False
 
 
 def play_per_turn(pwhite, pblack):
@@ -168,5 +190,5 @@ if __name__ == "__main__":
     white = Player(WHITE, nn)
     black = Player(BLACK, nn)
 
-    play_per_turn(white, black)
-    # play_with_score(white, black)
+    # play_per_turn(white, black)
+    play_with_score(white, black)

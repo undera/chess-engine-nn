@@ -12,14 +12,15 @@ I understand there is ton of research done for centuries on all of the things I 
 ## Diagram
 ![](diagram.png)
 
+## Neural Network Structure:
+![](model.png)
+
+
 ## Journal
 
 ### Feb 15, 2019
 First commits of the code.
 Using own representation of chess board as 8 * 8 * 12 array of 1/0 values. 1/0 are used as most distinctive input for NN about piece presence at certain square. NN uses two hidden layers 64 nodes each. Output of NN is 8 * 8 array for "from cell" and 8 * 8 array for "to cell" scores. A piece of code is used to choose best move that a) is by chess rules; b) has best score of "from" multiplied by "to" output cells. Finally, board state is checked for game end conditions of checkmate or 50-move rule.
-
-Model structure:
-![](model.png)
 
 Two copies of NN are used, one plays as White and one as Black, playing versus each other. Game is recorded as PGN file, to be able to review it by human.
 
@@ -128,3 +129,9 @@ Current idea is to introduce "intermediary goals" of "possible moves", "attacks"
 ### 15 Apr 2019
 
 After night of training, it has reached  slightly above 50% accuracy for choosing moves, but that's not much, since there are lots of repetitions and overall quality of moves is low. Still, it is better than what we had in the past.
+
+### 16 Apr 2019
+
+I'll experiment today's evening with two things: a) simplify the NN back to just inputs and outputs, with no aux outs; b) train with only victories and with score increasing from 0 to 1 the closer move to the end of game.
+
+... I need to understand how to avoid repetitions. The problem is that naturally NN falls into local optimums and suggest moves back and forth. One can't expect from this kind of non-temporal NN to work differently. So there should be a mechanism to avoid repetitions. Search tree is not an option, again. Just because whole idea of this engine is to avoid search tree.

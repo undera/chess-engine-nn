@@ -164,38 +164,6 @@ class BoardOptim(chess.Board):
                 attacks += PIECE_VALUES[dest_piece.symbol().upper()]
         return attacks
 
-    def plot(self, matrix, position, caption):
-        if not is_debug() or self.fullmove_number < 1:
-            return
-
-        img = pyplot.matshow(matrix)
-
-        for square in chess.SQUARES:
-            f = square_file(square)
-            r = square_rank(square)
-            piece = position[f][r]  # self.piece_at(square)
-
-            if not piece.any():
-                continue
-
-            if piece[int(chess.WHITE)].any():
-                color = chess.WHITE
-                piece_type = np.argmax(piece[int(chess.WHITE)])
-            else:
-                color = chess.BLACK
-                piece_type = np.argmax(piece[int(chess.BLACK)])
-
-            piece_symbol = chess.PIECE_SYMBOLS[piece_type + 1]
-
-            pyplot.text(r, f, chess.UNICODE_PIECE_SYMBOLS[piece_symbol],
-                        color="white" if color == chess.WHITE else "black",
-                        alpha=0.8, size="x-large", ha="center", va="center")
-
-        pyplot.title(caption + " - " + chess.COLOR_NAMES[self.turn] + "#%d" % self.fullmove_number)
-        pyplot.show()
-        if is_debug() and self.fullmove_number >= 2:
-            logging.debug("Stopping on move %s", self.fullmove_number)
-
 
 class MoveRecord(object):
     piece: chess.Piece
@@ -288,6 +256,38 @@ class MoveRecord(object):
             return 0.1
 
         return 0.0
+
+    def _plot(self, board, matrix, position, caption):
+        if not is_debug() or board.fullmove_number < 1:
+            return
+
+        img = pyplot.matshow(matrix)
+
+        for square in chess.SQUARES:
+            f = square_file(square)
+            r = square_rank(square)
+            piece = position[f][r]  # self.piece_at(square)
+
+            if not piece.any():
+                continue
+
+            if piece[int(chess.WHITE)].any():
+                color = chess.WHITE
+                piece_type = np.argmax(piece[int(chess.WHITE)])
+            else:
+                color = chess.BLACK
+                piece_type = np.argmax(piece[int(chess.BLACK)])
+
+            piece_symbol = chess.PIECE_SYMBOLS[piece_type + 1]
+
+            pyplot.text(r, f, chess.UNICODE_PIECE_SYMBOLS[piece_symbol],
+                        color="white" if color == chess.WHITE else "black",
+                        alpha=0.8, size="x-large", ha="center", va="center")
+
+        pyplot.title(caption + " - " + chess.COLOR_NAMES[board.turn] + "#%d" % board.fullmove_number)
+        pyplot.show()
+        if is_debug() and board.fullmove_number >= 2:
+            logging.debug("Stopping on move %s", board.fullmove_number)
 
 
 def is_debug():

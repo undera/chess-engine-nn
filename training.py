@@ -86,6 +86,8 @@ def play_with_score(pwhite, pblack):
     losing.load_moves()
     draw: Set[MoveRecord] = set()
 
+    nn.learn(winning.dataset, 20)
+
     rnd = 0
     non_decisive_cnt = 0
     had_decisive = False
@@ -98,25 +100,30 @@ def play_with_score(pwhite, pblack):
         if result == '1-0':
             had_decisive = True
             for x, move in enumerate(wmoves):
-                move.forced_eval = float(x) / len(wmoves)
+                move.forced_eval = 0.5 + 0.5 * float(x) / len(wmoves)
             winning.update(wmoves)
             losing.update(bmoves)
+            for x, move in enumerate(bmoves):
+                move.forced_eval = 0.5 - 0.5 * float(x) / len(wmoves)
         elif result == '0-1':
             had_decisive = True
             for x, move in enumerate(bmoves):
-                move.forced_eval = float(x) / len(bmoves)
+                move.forced_eval = 0.5 + 0.5 * float(x) / len(wmoves)
             winning.update(bmoves)
             losing.update(wmoves)
+            for x, move in enumerate(wmoves):
+                move.forced_eval = 0.5 - 0.5 * float(x) / len(wmoves)
         else:
             draw.update(wmoves)
             draw.update(bmoves)
 
         rnd += 1
         if not (rnd % 20) or False:
-            winning.dataset -= losing.dataset
-            # winning.dataset -= draw
-            losing.dataset -= winning.dataset
-            # losing.dataset -= draw
+            if had_decisive:
+                winning.dataset -= losing.dataset
+                # winning.dataset -= draw
+                losing.dataset -= winning.dataset
+                # losing.dataset -= draw
 
             if not had_decisive:
                 non_decisive_cnt += 1
@@ -129,26 +136,26 @@ def play_with_score(pwhite, pblack):
                     if x.from_round <= mmin:
                         winning.dataset.remove(x)
 
+            while len(losing.dataset) > 10000:
+                mmin = max([x.from_round for x in losing.dataset])
+                for x in list(losing.dataset):
+                    if x.from_round <= mmin:
+                        losing.dataset.remove(x)
+
             logging.info("W: %s\tL: %s\tD: %s\tNon-dec: %s", len(winning.dataset), len(losing.dataset), len(draw),
                          non_decisive_cnt)
 
-            # for x in winning.dataset:
-            #    x.forced_score = 1.0
-
-            # for x in losing.dataset:
-            #    x.forced_score = 0.0
-
             winning.dump_moves()
             losing.dump_moves()
-            dataset = winning.dataset  # | losing.dataset
+            dataset = winning.dataset | losing.dataset
 
             lst = list(draw)
             for x in lst:
-                x.forced_eval = 0  # random.random()
+                x.forced_eval = 0.5  # random.random()
             random.shuffle(lst)
             dataset.update(lst[:10 * non_decisive_cnt])
 
-            if had_decisive or not non_decisive_cnt % 5:
+            if had_decisive or not non_decisive_cnt % 5 or not winning.dataset:
                 nn.learn(dataset, 20)
                 nn.save("nn.hdf5")
 

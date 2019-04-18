@@ -135,3 +135,11 @@ After night of training, it has reached  slightly above 50% accuracy for choosin
 I'll experiment today's evening with two things: a) simplify the NN back to just inputs and outputs, with no aux outs; b) train with only victories and with score increasing from 0 to 1 the closer move to the end of game.
 
 ... I need to understand how to avoid repetitions. The problem is that naturally NN falls into local optimums and suggest moves back and forth. One can't expect from this kind of non-temporal NN to work differently. So there should be a mechanism to avoid repetitions. Search tree is not an option, again. Just because whole idea of this engine is to avoid search tree.
+
+### 18 Apr 2019
+
+Doing several experiments:
+
+- Removing 3-fold repetition moves from learning data. Those moves are still present in the games, but learning input is nog garbaged by them.
+- Added "eval" output of NN, teaching it to evaluate win chance of the game. Game start with each player having 0.5 and then loser gets to 0.0 while winner gets to 1.0.
+- Playing back and forth with aux outputs of NN. They're still in question.

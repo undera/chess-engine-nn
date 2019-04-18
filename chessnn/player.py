@@ -4,7 +4,7 @@ import chess
 import numpy as np
 import random
 
-from chessnn import MoveRecord, BoardOptim, nn
+from chessnn import MoveRecord, BoardOptim, nn, is_debug
 
 
 class Player(object):
@@ -46,9 +46,9 @@ class Player(object):
         log_rec.threats = threats
         log_rec.from_round = in_round
 
-        logging.debug("%d. %r %.3f %.2f", self.board.fullmove_number, move, geval, log_rec.get_eval())
+        logging.debug("%d. %r %s %.2f", self.board.fullmove_number, move, geval, log_rec.get_eval())
         self.moves_log.append(log_rec)
-        self.board.comment_stack.append("%s %s" % (log_rec.get_eval(), balance))
+        self.board.comment_stack.append("%s/%.2f %s" % (log_rec.get_eval(), geval[0], balance))
 
         not_over = move and not self.board.is_game_over(claim_draw=False)
 
@@ -61,9 +61,9 @@ class Player(object):
         return not_over
 
     def _choose_best_move(self, pos):
-        geval, wfrom, wto, pmoves, attacks, defences, threats, threatened = self.nn.query(pos[np.newaxis, ...])  #
+        geval, wfrom, wto = self.nn.query(pos[np.newaxis, ...])  # , pmoves, attacks, defences, threats, threatened
 
-        self.board.multiplot("predicted", pos, wfrom, wto, attacks, defences, threats, threatened, pmoves)
+        # self.board.multiplot("predicted", pos, wfrom, wto, attacks, defences, threats, threatened, pmoves)
 
         if self.color == chess.BLACK:
             wfrom = np.fliplr(wfrom)
@@ -90,6 +90,9 @@ class Player(object):
             self.board.push(move)
             try:
                 if self.board.can_claim_threefold_repetition():
+                    had_3fold = True
+                    continue
+                if self.board.can_claim_fifty_moves():
                     continue
             finally:
                 self.board.pop()
@@ -98,14 +101,14 @@ class Player(object):
             break
 
         if had_3fold:
-            self.board.write_pgn("last.pgn", 0)
+            if is_debug() or len(self.moves_log) < 3:
+                self.board.write_pgn("last.pgn", 0)
+
             logging.debug("Rolling back some moves from %s", len(self.moves_log))
-            if len(self.moves_log) < 3:
-                logging.warning("Less")
 
             self.moves_log.pop()
             self.moves_log.pop()
-            self.moves_log.pop()
+            # self.moves_log.pop()
 
         return selected_move
 
@@ -149,6 +152,5 @@ class Player(object):
             res = arr.argmax()
             return int(res)
 
-        new_move = chess.Move(flip(move.from_square), flip(move.to_square),
-                              move.promotion, move.drop)
+        new_move = chess.Move(flip(move.from_square), flip(move.to_square), move.promotion, move.drop)
         return new_move

@@ -32,8 +32,8 @@ def play_one_game(pwhite, pblack, rnd, non_decisive_cnt=0):
 
     board.write_pgn(os.path.join(os.path.dirname(__file__), "last.pgn"), rnd)
 
-    avg_score_w = sum([x.get_score() for x in pwhite.moves_log]) / float(len(pwhite.moves_log))
-    avg_score_b = sum([x.get_score() for x in pblack.moves_log]) / float(len(pblack.moves_log))
+    avg_score_w = sum([x.get_eval() for x in pwhite.moves_log]) / float(len(pwhite.moves_log))
+    avg_score_b = sum([x.get_eval() for x in pblack.moves_log]) / float(len(pblack.moves_log))
     logging.info("Game #%d:\t%s by %s,\t%d moves,\t%.2f / %.2f AMS", rnd, board.result(claim_draw=True),
                  board.explain(), board.fullmove_number, avg_score_w, avg_score_b)
 
@@ -98,13 +98,13 @@ def play_with_score(pwhite, pblack):
         if result == '1-0':
             had_decisive = True
             for x, move in enumerate(wmoves):
-                move.forced_score = float(x) / len(wmoves)
+                move.forced_eval = float(x) / len(wmoves)
             winning.update(wmoves)
             losing.update(bmoves)
         elif result == '0-1':
             had_decisive = True
             for x, move in enumerate(bmoves):
-                move.forced_score = float(x) / len(bmoves)
+                move.forced_eval = float(x) / len(bmoves)
             winning.update(bmoves)
             losing.update(wmoves)
         else:
@@ -112,7 +112,7 @@ def play_with_score(pwhite, pblack):
             draw.update(bmoves)
 
         rnd += 1
-        if not (rnd % 20):
+        if not (rnd % 20) or False:
             winning.dataset -= losing.dataset
             # winning.dataset -= draw
             losing.dataset -= winning.dataset
@@ -144,7 +144,7 @@ def play_with_score(pwhite, pblack):
 
             lst = list(draw)
             for x in lst:
-                x.forced_score = 0  # random.random()
+                x.forced_eval = 0  # random.random()
             random.shuffle(lst)
             dataset.update(lst[:10 * non_decisive_cnt])
 
@@ -168,7 +168,7 @@ def play_per_turn(pwhite, pblack):
         result = play_one_game(pwhite, pblack, rnd)
 
         moves = pwhite.get_moves() + pblack.get_moves()
-        moves = list(filter(lambda x: x.get_score() > 0, moves))
+        moves = list(filter(lambda x: x.get_eval() > 0, moves))
         dataset.update(moves)
 
         rnd += 1

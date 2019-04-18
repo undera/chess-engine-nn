@@ -7,7 +7,6 @@ from chess import PIECE_TYPES, square_file, square_rank
 from keras import layers, Model, models
 from keras.callbacks import TensorBoard
 from keras.layers import concatenate
-from keras.regularizers import l2
 from keras.utils import plot_model
 
 from chessnn import MoveRecord
@@ -38,15 +37,15 @@ class NN(object):
         activ_out = "softmax"  # linear relu elu sigmoid tanh softmax
         optimizer = "nadam"  # sgd rmsprop adagrad adadelta adamax adam nadam
 
-        def _residual(inp):
-            out = layers.Dense(kernel, activation=activ_hidden)(inp)
+        def _residual(inp, size):
+            out = layers.Dense(size, activation=activ_hidden, kernel_regularizer=reg)(inp)
             return concatenate([inp, out])
 
         def _branch(layer, repeats, name):
-            for x in range(repeats):
-                layer = _residual(layer)
+            for _ in range(repeats):
+                layer = _residual(layer, kernel)
 
-            odense = layers.Dense(64, activation=activ_out, kernel_regularizer=reg)(layer)
+            odense = layers.Dense(64, activation=activ_out)(layer)
             omatrix = layers.Reshape((8, 8), name=name)(odense)
             return odense, omatrix
 
@@ -65,12 +64,17 @@ class NN(object):
         bto = concatenate([iflat, pmoves, attacks, threats])
         bto, out_to = _branch(bto, 8, "main_to")
 
-        outputs = [out_from, out_to, out_pmoves, out_attacks, out_defences, out_threats, out_threatened]
+        beval = concatenate([iflat, pmoves, attacks, defences, threats, threatened])
+        for x in range(4):
+            beval = _residual(beval, kernel)
+        oeval = layers.Dense(1, activation="sigmoid", name="eval")(beval)
+
+        outputs = [oeval, out_from, out_to, out_pmoves, out_attacks, out_defences, out_threats, out_threatened]
         model = Model(inputs=[position, ], outputs=outputs)
         model.compile(optimizer=optimizer,
-                      loss='categorical_crossentropy',
-                      loss_weights=[1000.0, 1000.0, 1.0, 1.0, 1.0, 1.0, 1.0],
-                      metrics=['categorical_accuracy'])
+                      loss=["binary_crossentropy", ] + ['categorical_crossentropy'] * 7,
+                      loss_weights=[1.0, 1000.0, 1000.0, 1.0, 1.0, 1.0, 1.0, 1.0],
+                      metrics=['categorical_accuracy', "accuracy"])
         plot_model(model, to_file='model.png', show_shapes=True)
         return model
 
@@ -95,19 +99,21 @@ class NN(object):
         defences = np.full((batch_len, 8, 8), 0.0)
         threats = np.full((batch_len, 8, 8), 0.0)
         threatened = np.full((batch_len, 8, 8), 0.0)
+        evals = np.full((batch_len, 1), 0.0)
 
-        outputs = [out_from, out_to, pmoves, attacks, defences, threats, threatened]
+        outputs = [evals, out_from, out_to, pmoves, attacks, defences, threats, threatened]
 
         batch_n = 0
-        rec: MoveRecord
         for rec in data:
-            score = rec.get_score() if force_score is None else force_score
+            assert isinstance(rec, MoveRecord)
+            score = rec.get_eval() if force_score is None else force_score
             assert score is not None
 
+            evals[batch_n][0] = score
             inputs_pos[batch_n] = rec.position
 
-            out_from[batch_n][square_file(rec.from_square)][square_rank(rec.from_square)] = score
-            out_to[batch_n][square_file(rec.to_square)][square_rank(rec.to_square)] = score
+            out_from[batch_n][square_file(rec.from_square)][square_rank(rec.from_square)] = 1
+            out_to[batch_n][square_file(rec.to_square)][square_rank(rec.to_square)] = 1
 
             pmoves[batch_n] = np.reshape(rec.possible_moves, (-1, 8))
             attacks[batch_n] = np.reshape(rec.attacked, (-1, 8))

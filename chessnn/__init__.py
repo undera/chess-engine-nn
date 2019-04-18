@@ -35,7 +35,10 @@ class MyStringExporter(pgn.StringExporter):
                 self.write_token(str(board.fullmove_number) + "... ")
 
             # Write the SAN.
-            self.write_token(board.san(move) + " {%s} " % self.comm_stack.pop(0))
+            if self.comm_stack:
+                self.write_token(board.san(move) + " {%s} " % self.comm_stack.pop(0))
+            else:
+                self.write_token(board.san(move))
 
             self.force_movenumber = False
 
@@ -164,13 +167,55 @@ class BoardOptim(chess.Board):
                 attacks += PIECE_VALUES[dest_piece.symbol().upper()]
         return attacks
 
+    def _plot(board, matrix, position, caption):
+        if not is_debug() or board.fullmove_number < 1:
+            return
+
+        img = pyplot.matshow(matrix)
+
+        for square in chess.SQUARES:
+            f = square_file(square)
+            r = square_rank(square)
+            piece = position[f][r]  # self.piece_at(square)
+
+            if not piece.any():
+                continue
+
+            if piece[int(chess.WHITE)].any():
+                color = chess.WHITE
+                piece_type = np.argmax(piece[int(chess.WHITE)])
+            else:
+                color = chess.BLACK
+                piece_type = np.argmax(piece[int(chess.BLACK)])
+
+            piece_symbol = chess.PIECE_SYMBOLS[piece_type + 1]
+
+            pyplot.text(r, f, chess.UNICODE_PIECE_SYMBOLS[piece_symbol],
+                        color="white" if color == chess.WHITE else "black",
+                        alpha=0.8, size="x-large", ha="center", va="center")
+
+        pyplot.title(caption + " - " + chess.COLOR_NAMES[board.turn] + "#%d" % board.fullmove_number)
+        pyplot.show()
+        if is_debug() and board.fullmove_number >= 2:
+            logging.debug("Stopping on move %s", board.fullmove_number)
+
+    def multiplot(self, memo, pos, wfrom, wto, attacks, defences, threats, threatened, pmoves):
+        return
+        self._plot(wfrom, pos, "wfrom")
+        self._plot(wto, pos, "wto")
+        self._plot(attacks, pos, "attacks predicted")
+        self._plot(defences, pos, "defences predicted")
+        self._plot(threats, pos, "threats predicted")
+        self._plot(threatened, pos, "threatened predicted")
+        self._plot(pmoves, pos, "possible predicted")
+
 
 class MoveRecord(object):
     piece: chess.Piece
 
     def __init__(self, position=None, move=None, kpis=None, piece=None, possible_moves=None) -> None:
         super().__init__()
-        self.forced_score = None
+        self.forced_eval = None
 
         self.position = position
         self.piece = piece
@@ -187,7 +232,7 @@ class MoveRecord(object):
         self.kpis = [int(x) for x in kpis]
 
     def __str__(self) -> str:
-        return json.dumps({x: y for x, y in self.__dict__.items() if x not in ('forced_score', 'kpis')})
+        return json.dumps({x: y for x, y in self.__dict__.items() if x not in ('forced_eval', 'kpis')})
 
     def __hash__(self):
         h = xxhash.xxh64()
@@ -211,9 +256,9 @@ class MoveRecord(object):
         """
         raise ValueError()
 
-    def get_score(self):
-        if self.forced_score is not None:
-            return self.forced_score
+    def get_eval(self):
+        if self.forced_eval is not None:
+            return self.forced_eval
 
         # material, attacks, defences, threats, threatened
 
@@ -256,38 +301,6 @@ class MoveRecord(object):
             return 0.1
 
         return 0.0
-
-    def _plot(self, board, matrix, position, caption):
-        if not is_debug() or board.fullmove_number < 1:
-            return
-
-        img = pyplot.matshow(matrix)
-
-        for square in chess.SQUARES:
-            f = square_file(square)
-            r = square_rank(square)
-            piece = position[f][r]  # self.piece_at(square)
-
-            if not piece.any():
-                continue
-
-            if piece[int(chess.WHITE)].any():
-                color = chess.WHITE
-                piece_type = np.argmax(piece[int(chess.WHITE)])
-            else:
-                color = chess.BLACK
-                piece_type = np.argmax(piece[int(chess.BLACK)])
-
-            piece_symbol = chess.PIECE_SYMBOLS[piece_type + 1]
-
-            pyplot.text(r, f, chess.UNICODE_PIECE_SYMBOLS[piece_symbol],
-                        color="white" if color == chess.WHITE else "black",
-                        alpha=0.8, size="x-large", ha="center", va="center")
-
-        pyplot.title(caption + " - " + chess.COLOR_NAMES[board.turn] + "#%d" % board.fullmove_number)
-        pyplot.show()
-        if is_debug() and board.fullmove_number >= 2:
-            logging.debug("Stopping on move %s", board.fullmove_number)
 
 
 def is_debug():

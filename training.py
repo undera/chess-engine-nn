@@ -88,7 +88,7 @@ def play_with_score(pwhite, pblack):
 
     nn.learn(winning.dataset, 20)
 
-    rnd = 0
+    rnd = max([x.from_round for x in winning.dataset | losing.dataset]) if winning.dataset else 0
     non_decisive_cnt = 0
     had_decisive = False
     while True:
@@ -155,7 +155,7 @@ def play_with_score(pwhite, pblack):
             random.shuffle(lst)
             dataset.update(lst[:10 * non_decisive_cnt])
 
-            if had_decisive or not non_decisive_cnt % 5 or not winning.dataset:
+            if had_decisive or not non_decisive_cnt % 5:
                 nn.learn(dataset, 20)
                 nn.save("nn.hdf5")
 

@@ -143,3 +143,5 @@ Doing several experiments:
 - Removing 3-fold repetition moves from learning data. Those moves are still present in the games, but learning input is nog garbaged by them.
 - Added "eval" output of NN, teaching it to evaluate win chance of the game. Game start with each player having 0.5 and then loser gets to 0.0 while winner gets to 1.0.
 - Playing back and forth with aux outputs of NN. They're still in question.
+
+Also figured out my residual unit were increasing of size with each level. Reworked that to constant size of 8 * 8 * 12 (initial inputs)

@@ -7,7 +7,7 @@ import numpy as np
 from chess import PIECE_TYPES, square_file, square_rank
 from keras import layers, Model, models
 from keras.callbacks import TensorBoard
-from keras.layers import concatenate
+from keras.layers import merge
 from keras.utils import plot_model
 
 from chessnn import MoveRecord
@@ -32,15 +32,19 @@ class NN(object):
         self._model.save(filename, overwrite=True)
 
     def _get_nn(self):
-        reg = keras.regularizers.l2(0.001)
-        kernel = 8 * 8 * 4
+        reg = keras.regularizers.l2(0.00001)
+        kernel = 8 * 8
         activ_hidden = "sigmoid"  # linear relu elu sigmoid tanh softmax
         activ_out = "softmax"  # linear relu elu sigmoid tanh softmax
         optimizer = "nadam"  # sgd rmsprop adagrad adadelta adamax adam nadam
 
         def _residual(inp, size):
+            # out = layers.Dropout(rate=0.05)(inp)
+            inp = layers.Dense(size, activation=activ_hidden, kernel_regularizer=reg)(inp)
             out = layers.Dense(size, activation=activ_hidden, kernel_regularizer=reg)(inp)
-            return concatenate([inp, out])
+            out = merge.add([inp, out])
+            # out = layers.Dense(size, activation=activ_hidden, kernel_regularizer=reg)(out)
+            return out
 
         def _branch(layer, repeats, name):
             for _ in range(repeats):
@@ -52,6 +56,7 @@ class NN(object):
 
         position = layers.Input(shape=(8, 8, 2, len(PIECE_TYPES),), name="position")
         iflat = layers.Flatten()(position)
+        # iflat = layers.Dense(kernel, activation=activ_hidden, kernel_regularizer=reg)(iflat)
 
         # pmoves, out_pmoves = _branch(iflat, 4, "possible_moves")
         # attacks, out_attacks = _branch(iflat, 4, "attacks")
@@ -60,8 +65,13 @@ class NN(object):
         # threatened, out_threatened = _branch(iflat, 4, "threatened")
 
         main = iflat
-        for x in range(8):
-            main = _residual(main, kernel)
+
+        main = _residual(main, kernel * 10)
+        main = _residual(main, kernel * 8)
+        main = _residual(main, kernel * 6)
+        main = _residual(main, kernel * 4)
+        main = _residual(main, kernel * 2)
+
         out_from = layers.Dense(64, activation=activ_out)(main)
         out_from = layers.Reshape((8, 8), name="from")(out_from)
         out_to = layers.Dense(64, activation=activ_out)(main)
@@ -71,13 +81,13 @@ class NN(object):
 
         for x in range(2):
             beval = _residual(beval, kernel)
-        oeval = layers.Dense(2, activation="sigmoid", name="eval")(beval)
+        oeval = layers.Dense(2, activation=activ_out, name="eval")(beval)
 
         outputs = [oeval, out_from, out_to, ]  # out_pmoves, out_attacks, out_defences, out_threats, out_threatened]
         model = Model(inputs=[position, ], outputs=outputs)
         model.compile(optimizer=optimizer,
-                      loss=["categorical_crossentropy", ] + ['categorical_crossentropy'] * 2,
-                      loss_weights=[1.0, ] + [320.0, 640.0, ],
+                      loss="categorical_crossentropy",
+                      loss_weights=[0.025, 1.0, 1.0],
                       metrics=['categorical_accuracy'])
         plot_model(model, to_file='model.png', show_shapes=True)
         return model

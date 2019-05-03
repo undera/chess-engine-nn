@@ -1,3 +1,4 @@
+import collections
 import copy
 import json
 import logging
@@ -9,6 +10,7 @@ import numpy as np
 import xxhash
 from chess import pgn, square_file, square_rank
 from matplotlib import pyplot
+from matplotlib.figure import AxesStack
 
 PIECE_VALUES = {
     chess.PAWN: 1,
@@ -36,7 +38,13 @@ class MyStringExporter(pgn.StringExporter):
 
             # Write the SAN.
             if self.comm_stack:
-                self.write_token(board.san(move) + " {%s} " % self.comm_stack.pop(0))
+                log_rec = self.comm_stack.pop(0)
+                if log_rec.ignore:
+                    comm = "ign"
+                else:
+                    comm = "%.2f" % (log_rec.get_eval())
+
+                self.write_token(board.san(move) + " {%s} " % comm)
             else:
                 self.write_token(board.san(move))
 
@@ -84,6 +92,40 @@ class BoardOptim(chess.Board):
         cnt = Counter(self._fens)
         return cnt[self._fens[-1]] >= 3
 
+    def can_claim_threefold_repetition(self):
+        """
+        Draw by threefold repetition can be claimed if the position on the
+        board occured for the third time or if such a repetition is reached
+        with one of the possible legal moves.
+
+        Note that checking this can be slow: In the worst case
+        scenario every legal move has to be tested and the entire game has to
+        be replayed because there is no incremental transposition table.
+        """
+        transposition_key = self._transposition_key()
+        transpositions = collections.Counter()
+        transpositions.update((transposition_key,))
+
+        # Count positions.
+        switchyard = []
+        while self.move_stack:
+            move = self.pop()
+            switchyard.append(move)
+
+            if self.is_irreversible(move):
+                break
+
+            transpositions.update((self._transposition_key(),))
+
+        while switchyard:
+            self.push(switchyard.pop())
+
+        # Threefold repetition occured.
+        if transpositions[transposition_key] >= 3:
+            return True
+
+        return False
+
     def is_fivefold_repetition1(self):
         cnt = Counter(self._fens)
         return cnt[self._fens[-1]] >= 5
@@ -100,11 +142,11 @@ class BoardOptim(chess.Board):
         return super().pop()
 
     def get_info(self):
-        pos = np.full((8, 8, 2, len(chess.PIECE_TYPES)), 0)
-        attacked = np.full((8, 8,), 0)
-        defended = np.full((8, 8,), 0)
-        threatened = np.full((8, 8,), 0)
-        threats = np.full((8, 8,), 0)
+        pos = np.full((2, 8, 8, len(chess.PIECE_TYPES)), 0)
+        attacked = np.full((8, 8,), 0.0)
+        defended = np.full((8, 8,), 0.0)
+        threatened = np.full((8, 8,), 0.0)
+        threats = np.full((8, 8,), 0.0)
         material = 0
         for square in chess.SQUARES:
             piece = self.piece_at(square)
@@ -114,21 +156,37 @@ class BoardOptim(chess.Board):
 
             material += PIECE_VALUES[piece.piece_type] if piece.color == self.turn else -PIECE_VALUES[piece.piece_type]
 
-            pos[square_file(square)][square_rank(square)][int(piece.color)][piece.piece_type - 1] = 1
+            pos[int(piece.color)][square_file(square)][square_rank(square)][piece.piece_type - 1] = 1
 
             attackers = self.attackers(self.turn, square)
-            attacked[square_file(square)][square_rank(square)] |= bool(attackers) and piece.color != self.turn
+            attacked[square_file(square)][square_rank(square)] += bool(attackers) and piece.color != self.turn
 
             defenders = self.attackers(self.turn, square)
-            defended[square_file(square)][square_rank(square)] |= bool(defenders) and piece.color == self.turn
+            defended[square_file(square)][square_rank(square)] += bool(defenders) and piece.color == self.turn
 
             threaters = self.attackers(not self.turn, square)
-            threatened[square_file(square)][square_rank(square)] |= bool(threaters) and piece.color == self.turn
+            threatened[square_file(square)][square_rank(square)] += bool(threaters) and piece.color == self.turn
             if self.turn == piece.color:
                 for tsq in threaters:
                     threats[square_file(tsq)][square_rank(tsq)] = 1
 
         pos.flags.writeable = False
+
+        attacked[attacked > 0] = 1
+        defended[defended > 0] = 1
+        threatened[threatened > 0] = 1
+        threats[threats > 0] = 1
+
+        attacked = attacked / attacked.sum() if attacked.any() else attacked
+        defended = defended / defended.sum() if defended.any() else defended
+        threatened = threatened / threatened.sum() if threatened.any() else threatened
+        threats = threats / threats.sum() if threats.any() else threats
+
+        assert 0 <= attacked.sum() <= 1.001, attacked.sum()
+        assert 0 <= defended.sum() <= 1.001, defended.sum()
+        assert 0 <= threatened.sum() <= 1.001, threatened.sum()
+        assert 0 <= threats.sum() <= 1.001, threats.sum()
+
         return pos, attacked, defended, threatened, threats, material
 
     def get_evals(self, fen):
@@ -167,47 +225,62 @@ class BoardOptim(chess.Board):
                 attacks += PIECE_VALUES[dest_piece.symbol().upper()]
         return attacks
 
-    def _plot(board, matrix, position, caption):
-        if not is_debug() or board.fullmove_number < 1:
-            return
+    def _plot(board, matrix, position, fig, caption):
+        """
+        :type matrix: numpy.array
+        :type position:  numpy.array
+        :type fig: matplotlib.axes.Axes
+        :type caption: str
+        :return:
+        """
+        fig.axis('off')
 
-        img = pyplot.matshow(matrix)
+        img = fig.matshow(matrix)
 
         for square in chess.SQUARES:
             f = square_file(square)
             r = square_rank(square)
-            piece = position[f][r]  # self.piece_at(square)
 
-            if not piece.any():
+            if any(position[int(chess.WHITE)][f][r]):
+                color = chess.WHITE
+            elif any(position[int(chess.BLACK)][f][r]):
+                color = chess.BLACK
+            else:
                 continue
 
-            if piece[int(chess.WHITE)].any():
-                color = chess.WHITE
-                piece_type = np.argmax(piece[int(chess.WHITE)])
-            else:
-                color = chess.BLACK
-                piece_type = np.argmax(piece[int(chess.BLACK)])
-
+            piece_type = np.argmax(position[int(color)][f][r])
             piece_symbol = chess.PIECE_SYMBOLS[piece_type + 1]
 
-            pyplot.text(r, f, chess.UNICODE_PIECE_SYMBOLS[piece_symbol],
-                        color="white" if color == chess.WHITE else "black",
-                        alpha=0.8, size="x-large", ha="center", va="center")
+            fig.text(r, f, chess.UNICODE_PIECE_SYMBOLS[piece_symbol],
+                     color="white" if color == chess.WHITE else "black",
+                     alpha=0.8, ha="center", va="center")
 
-        pyplot.title(caption + " - " + chess.COLOR_NAMES[board.turn] + "#%d" % board.fullmove_number)
+        fig.set_title(caption)
+
+    def multiplot(board, memo, pos, wfrom, wto, attacks, defences, threats, threatened, pmoves):
+        if not is_debug() or board.fullmove_number < 1:
+            return
+
+        pyplot.close("all")
+        fig = pyplot.figure()
+        fig, axes = pyplot.subplots(4, 2, figsize=(5, 10), gridspec_kw={'wspace': 0.01, 'hspace': 0.3}, )
+
+        board._plot(wfrom, pos, axes[0][0], "wfrom")
+        board._plot(wto, pos, axes[0][1], "wto")
+
+        board._plot(attacks, pos, axes[1][0], "attacks")
+        board._plot(defences, pos, axes[1][1], "defences")
+
+        board._plot(threats, pos, axes[2][0], "threats")
+        board._plot(threatened, pos, axes[2][1], "threatened")
+
+        board._plot(pmoves, pos, axes[3][0], "possible moves")
+
+        axes[3][1].axis("off")
+        axes[3][1].set_title(memo + " - " + chess.COLOR_NAMES[board.turn] + "#%d" % board.fullmove_number)
+        # pyplot.tight_layout()
         pyplot.show()
-        if is_debug() and board.fullmove_number >= 2:
-            logging.debug("Stopping on move %s", board.fullmove_number)
-
-    def multiplot(self, memo, pos, wfrom, wto, attacks, defences, threats, threatened, pmoves):
-        return
-        self._plot(wfrom, pos, "wfrom")
-        self._plot(wto, pos, "wto")
-        self._plot(attacks, pos, "attacks predicted")
-        self._plot(defences, pos, "defences predicted")
-        self._plot(threats, pos, "threats predicted")
-        self._plot(threatened, pos, "threatened predicted")
-        self._plot(pmoves, pos, "possible predicted")
+        logging.debug("drawn")
 
 
 class MoveRecord(object):
@@ -216,6 +289,7 @@ class MoveRecord(object):
     def __init__(self, position=None, move=None, kpis=None, piece=None, possible_moves=None) -> None:
         super().__init__()
         self.forced_eval = None
+        self.ignore = False
 
         self.position = position
         self.piece = piece

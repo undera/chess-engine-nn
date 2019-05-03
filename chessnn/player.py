@@ -1,4 +1,5 @@
 import logging
+from typing import List, Any
 
 import chess
 import numpy as np
@@ -8,6 +9,7 @@ from chessnn import MoveRecord, BoardOptim, nn, is_debug
 
 
 class Player(object):
+    moves_log: List[MoveRecord]
     board: BoardOptim
     nn: nn.NN
 
@@ -25,6 +27,13 @@ class Player(object):
         pos, attacked, defended, threatened, threats, material = info
 
         move, possible_moves, geval = self._choose_best_move(pos)
+        move_rec = self._mirror_move(move) if self.color == chess.BLACK else move
+
+        afrom = np.full((8, 8), 0)
+        afrom[chess.square_file(move_rec.from_square)][chess.square_rank(move_rec.from_square)] = 1
+        ato = np.full((8, 8), 0)
+        ato[chess.square_file(move_rec.to_square)][chess.square_rank(move_rec.to_square)] = 1
+        self.board.multiplot("actual", pos, afrom, ato, attacked, defended, threats, threatened, possible_moves)
 
         self.board.push(move)
 
@@ -37,7 +46,6 @@ class Player(object):
                    athreats.sum() - threats.sum(), athreatened.sum() - threatened.sum()]  # TODO: lost mobility
 
         piece = self.board.piece_at(move.to_square)
-        move_rec = self._mirror_move(move) if self.color == chess.BLACK else move
         log_rec = MoveRecord(position=pos, move=move_rec, kpis=balance, piece=piece.piece_type,
                              possible_moves=possible_moves)
         log_rec.attacked = attacked
@@ -48,22 +56,16 @@ class Player(object):
 
         logging.debug("%d. %r %s %.2f", self.board.fullmove_number, move, geval, log_rec.get_eval())
         self.moves_log.append(log_rec)
-        self.board.comment_stack.append("%s/%.2f %s" % (log_rec.get_eval(), geval[0], balance))
+        self.board.comment_stack.append(log_rec)
 
         not_over = move and not self.board.is_game_over(claim_draw=False)
-
-        afrom = np.full((8, 8), 0)
-        afrom[chess.square_file(move_rec.from_square)][chess.square_rank(move_rec.from_square)] = 1
-        ato = np.full((8, 8), 0)
-        ato[chess.square_file(move_rec.to_square)][chess.square_rank(move_rec.to_square)] = 1
-        self.board.multiplot("actual", pos, afrom, ato, attacked, defended, threats, threatened, possible_moves)
 
         return not_over
 
     def _choose_best_move(self, pos):
-        geval, wfrom, wto = self.nn.query(pos[np.newaxis, ...])  # , pmoves, attacks, defences, threats, threatened
+        geval, wfrom, wto, pmoves, attacks, defences, threats, threatened = self.nn.query(pos[np.newaxis, ...])
 
-        # self.board.multiplot("predicted", pos, wfrom, wto, attacks, defences, threats, threatened, pmoves)
+        self.board.multiplot("NN", pos, wfrom, wto, attacks, defences, threats, threatened, pmoves)
 
         if self.color == chess.BLACK:
             wfrom = np.fliplr(wfrom)
@@ -102,13 +104,14 @@ class Player(object):
 
         if had_3fold:
             if is_debug() or len(self.moves_log) < 3:
-                self.board.write_pgn("last.pgn", 0)
+                self.board.write_pgn("last.pgn", -1)
 
             logging.debug("Rolling back some moves from %s", len(self.moves_log))
 
-            self.moves_log.pop()
-            self.moves_log.pop()
-            # self.moves_log.pop()
+            self.moves_log[-1].ignore = True
+            self.moves_log[-2].ignore = True
+            self.moves_log[-3].ignore = True
+            self.moves_log[-4].ignore = True
 
         return selected_move
 
@@ -128,7 +131,7 @@ class Player(object):
         if self.color == chess.BLACK:
             possible_moves = np.fliplr(possible_moves)
 
-        return move_rating, possible_moves
+        return move_rating, possible_moves / possible_moves.sum()
 
     def get_moves(self):
         res = []

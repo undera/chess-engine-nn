@@ -96,11 +96,17 @@ class NNChess(NN):
             # out = layers.Dense(size, activation=activ_hidden, kernel_regularizer=reg)(out)
             return out
 
+        branch = main
+        for _ in range(1, 4):
+            branch = _residual(branch, 8 * _)
+
+        main = layers.concatenate([main, branch])
+
         for _ in range(1, 4):
             main = _residual(main, 8 * 8 * _)
 
         out_moves = layers.Dense(4096, activation=activ_out, name="moves")(main)
-        out_eval = layers.Dense(2, activation=activ_out, name="eval")(main)
+        out_eval = layers.Dense(2, activation=activ_out, name="eval")(branch)
 
         model = models.Model(inputs=[position, flags], outputs=[out_moves, out_eval])
         model.compile(optimizer=optimizer,

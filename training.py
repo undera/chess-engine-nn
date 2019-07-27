@@ -124,7 +124,6 @@ def play_with_score(pwhite, pblack):
                 move.forced_eval = 0.0
             winning.update(wmoves)
             losing.update(bmoves)
-            nn.train(winning.dataset, 1)
         elif result == '0-1':
             for x, move in enumerate(bmoves):
                 move.forced_eval = 1.0
@@ -132,7 +131,6 @@ def play_with_score(pwhite, pblack):
                 move.forced_eval = 0.0
             winning.update(bmoves)
             losing.update(wmoves)
-            nn.train(winning.dataset, 1)
         else:
             pass
             # for x, move in enumerate(bmoves):

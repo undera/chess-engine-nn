@@ -10,7 +10,6 @@ import numpy as np
 import xxhash
 from chess import pgn, square_file, square_rank
 from matplotlib import pyplot
-from matplotlib.figure import AxesStack
 
 PIECE_VALUES = {
     chess.PAWN: 1,
@@ -23,7 +22,6 @@ PIECE_VALUES = {
 
 
 class MyStringExporter(pgn.StringExporter):
-
     def __init__(self, comments):
         super().__init__(headers=True, variations=True, comments=True)
         self.comm_stack = copy.copy(comments)

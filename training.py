@@ -108,6 +108,7 @@ def play_with_score(pwhite, pblack):
 
     if not is_debug():
         nn.train(winning.dataset, 20)
+        #return
 
     rnd = max([x.from_round for x in winning.dataset | losing.dataset]) if winning.dataset else 0
     while True:

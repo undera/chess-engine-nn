@@ -79,19 +79,25 @@ class NN(object):
 
 class NNChess(NN):
     def _get_nn(self):
-        reg = regularizers.l2(0.00001)
+        reg = regularizers.l2(0.0001)
         activ_hidden = "relu"  # linear relu elu sigmoid tanh softmax
         activ_out = "softmax"  # linear relu elu sigmoid tanh softmax
         optimizer = "nadam"  # sgd rmsprop adagrad adadelta adamax adam nadam
 
         position = layers.Input(shape=(2, 8, 8, len(PIECE_TYPES)), name="position")
-
         flags = layers.Input(shape=(2,), name="flags")
         main = layers.concatenate([layers.Flatten()(position), flags])
 
-        main = layers.Dense(100, activation=activ_hidden, kernel_regularizer=reg)(main)
-        main = layers.Dense(100, activation=activ_hidden, kernel_regularizer=reg)(main)
-        main = layers.Dense(100, activation=activ_hidden, kernel_regularizer=reg)(main)
+        def _residual(inp, size):
+            # out = layers.Dropout(rate=0.05)(inp)
+            inp = layers.Dense(size, activation=activ_hidden, kernel_regularizer=reg)(inp)
+            out = layers.Dense(size, activation=activ_hidden, kernel_regularizer=reg)(inp)
+            out = layers.merge.multiply([inp, out])
+            # out = layers.Dense(size, activation=activ_hidden, kernel_regularizer=reg)(out)
+            return out
+
+        for _ in range(1, 4):
+            main = _residual(main, 8 * 8 * _)
 
         out_moves = layers.Dense(4096, activation=activ_out, name="moves")(main)
         out_eval = layers.Dense(2, activation=activ_out, name="eval")(main)

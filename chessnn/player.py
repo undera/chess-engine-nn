@@ -39,7 +39,7 @@ class Player(object):
 
         logging.debug("%d. %r %.2f\n%s", self.board.fullmove_number, move.uci(), geval, self.board.unicode())
 
-        not_over = move != chess.Move.null() and not self.board.is_game_over(claim_draw=True)
+        not_over = move != chess.Move.null() and not self.board.is_game_over(claim_draw=False)
         return not_over
 
     def _choose_best_move(self, pos):
@@ -50,12 +50,7 @@ class Player(object):
 
     def _get_moverec(self, pos, move, evl):
         fifty = self.board.halfmove_clock / 100.0
-        repetition3 = float(self.board.is_repetition(2))
-
-        repetition = 0.0
-        if repetition3:
-            repetition = 0.5
-
+        repetition = float(self.board.is_repetition(2))
         moverec = MoveRecord(pos, move, repetition, fifty)
         moverec.forced_eval = evl if not repetition else 0.0
         moverec.forced_eval = evl if not repetition else 0.0

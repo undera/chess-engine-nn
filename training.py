@@ -144,7 +144,7 @@ def play_with_score(pwhite, pblack):
             draw.update(bmoves)
 
         rnd += 1
-        if not (rnd % 960) or True:
+        if not (rnd % 960):
             # if had_decisive:
             # winning.dataset -= losing.dataset
             # winning.dataset -= draw
@@ -168,7 +168,7 @@ def play_with_score(pwhite, pblack):
                 x.forced_eval = 0.5 if not x.ignore else 0  # random.random()
             random.shuffle(lst)
             # dataset.update(lst[:10 * non_decisive_cnt])
-            dataset.update(lst[:max(10 * non_decisive_cnt + 1, len(dataset) // 2000)])
+            # dataset.update(lst[:max(10 * non_decisive_cnt + 1, len(dataset) // 2000)])
 
             if had_decisive or not non_decisive_cnt % 5:
                 nn.train(dataset, 20)
@@ -176,6 +176,7 @@ def play_with_score(pwhite, pblack):
 
             draw = set()
             had_decisive = False
+            break
 
 
 def play_per_turn(pwhite, pblack):
@@ -228,5 +229,5 @@ if __name__ == "__main__":
     white = Player(WHITE, nn)
     black = Player(BLACK, nn)
 
-    play_per_turn(white, black)
-    # play_with_score(white, black)
+    # play_per_turn(white, black)
+    play_with_score(white, black)

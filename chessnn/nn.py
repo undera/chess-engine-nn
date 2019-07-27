@@ -3,8 +3,15 @@ import os
 import time
 from abc import abstractmethod
 
+# from https://github.com/tensorflow/tensorflow/issues/26691
+# noinspection PyPackageRequirements
+import absl.logging
 import numpy as np
 from chess import PIECE_TYPES
+
+# noinspection PyProtectedMember
+logging.root.removeHandler(absl.logging._absl_handler)
+
 from tensorflow.python.keras import models, layers, utils, callbacks, regularizers
 
 

@@ -40,6 +40,7 @@ class MyStringExporter(pgn.StringExporter):
                 if log_rec.ignore:
                     comm = "ign"
                 else:
+                    pass
                     comm = "%.2f" % (log_rec.get_eval())
 
                 self.write_token(board.san(move) + " {%s} " % comm)
@@ -50,15 +51,22 @@ class MyStringExporter(pgn.StringExporter):
 
 
 class BoardOptim(chess.Board):
-
     def __init__(self, fen=chess.STARTING_FEN, *, chess960=False):
         super().__init__(fen, chess960=chess960)
         self._fens = []
         self.comment_stack = []
+        self.initial_fen = chess.STARTING_FEN
+
+    def set_chess960_pos(self, sharnagl):
+        super().set_chess960_pos(sharnagl)
+        self.initial_fen = self.fen()
 
     def write_pgn(self, fname, roundd):
         journal = pgn.Game.from_board(self)
         journal.headers.clear()
+        if self.chess960:
+            journal.headers["Variant"] = "Chess960"
+        journal.headers["FEN"] = self.initial_fen
         journal.headers["White"] = "Lisa"
         journal.headers["Black"] = "Karen"
         journal.headers["Round"] = roundd
@@ -244,14 +252,13 @@ class BoardOptim(chess.Board):
 class MoveRecord(object):
     piece: chess.Piece
 
-    def __init__(self, position=None, move=None, kpis=None, piece=None, possible_moves=None) -> None:
+    def __init__(self, position=None, move=None, kpis=None, piece=None) -> None:
         super().__init__()
         self.forced_eval = None
         self.ignore = False
 
         self.position = position
         self.piece = piece
-        self.possible_moves = possible_moves
 
         self.attacked = None
         self.defended = None

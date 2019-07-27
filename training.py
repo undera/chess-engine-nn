@@ -11,9 +11,6 @@ from chessnn import BoardOptim, MoveRecord, is_debug
 from chessnn.nn import NNChess
 from chessnn.player import Player
 
-mpl_logger = logging.getLogger('matplotlib')
-mpl_logger.setLevel(logging.WARNING)
-
 
 def play_one_game(pwhite, pblack, rnd):
     """
@@ -22,7 +19,7 @@ def play_one_game(pwhite, pblack, rnd):
     :type pblack: Player
     :type rnd: int
     """
-    board = BoardOptim.from_chess960_pos(random.randint(0, 959))
+    board = BoardOptim.from_chess960_pos(rnd % 960)
     pwhite.board = board
     pblack.board = board
 
@@ -32,14 +29,18 @@ def play_one_game(pwhite, pblack, rnd):
         if not pblack.makes_move(rnd):
             break
 
+        if is_debug():
+            board.write_pgn(os.path.join(os.path.dirname(__file__), "last.pgn"), rnd)
+
     board.write_pgn(os.path.join(os.path.dirname(__file__), "last.pgn"), rnd)
 
     avg_score_w = sum([x.get_eval() for x in pwhite.moves_log]) / float(len(pwhite.moves_log))
     avg_score_b = sum([x.get_eval() for x in pblack.moves_log]) / float(len(pblack.moves_log))
-    logging.info("Game #%d:\t%s by %s,\t%d moves,\t%.2f / %.2f AMS", rnd, board.result(claim_draw=True),
+    result = board.result(claim_draw=True)
+    logging.info("Game #%d:\t%s by %s,\t%d moves,\t%.2f / %.2f AMS", rnd, result,
                  board.explain(), board.fullmove_number, avg_score_w, avg_score_b)
 
-    return board.result(claim_draw=True)
+    return result
 
 
 class DataSet(object):
@@ -199,8 +200,10 @@ def play_per_turn(pwhite, pblack):
 if __name__ == "__main__":
     sys.setrecursionlimit(10000)
     logging.basicConfig(level=logging.DEBUG if is_debug() else logging.INFO)
+    # mpl_logger = logging.getLogger('matplotlib')
+    # mpl_logger.setLevel(logging.WARNING)
 
-    nn = NNChess()
+    nn = NNChess("nn.hdf5")
     white = Player(WHITE, nn)
     black = Player(BLACK, nn)
 

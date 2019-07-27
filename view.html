@@ -17,14 +17,16 @@
 <div id="board" class='merida brown'></div>
 <script>
     $.get("last.pgn", function (pgn) {
+        var match = /^\[FEN "([^"]+)"]/m.exec(pgn);
         var cfg = {
-            position: 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1',
+            position: match[1],
             pgn: pgn,
             locale: 'en',
             pieceStyle: 'wikipedia',
             timerTime: 200,
-            movesHeight: '200px'
+            movesHeight: '200px',
         };
+        console.log(cfg);
         var board = pgnView('board', cfg);
         window.setTimeout(function () {
             $("#boardButtonplay").click();

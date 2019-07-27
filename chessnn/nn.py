@@ -80,7 +80,7 @@ class NN(object):
 class NNChess(NN):
     def _get_nn(self):
         reg = regularizers.l2(0.00001)
-        activ_hidden = "sigmoid"  # linear relu elu sigmoid tanh softmax
+        activ_hidden = "relu"  # linear relu elu sigmoid tanh softmax
         activ_out = "softmax"  # linear relu elu sigmoid tanh softmax
         optimizer = "nadam"  # sgd rmsprop adagrad adadelta adamax adam nadam
 
@@ -89,6 +89,7 @@ class NNChess(NN):
         flags = layers.Input(shape=(2,), name="flags")
         main = layers.concatenate([layers.Flatten()(position), flags])
 
+        main = layers.Dense(100, activation=activ_hidden, kernel_regularizer=reg)(main)
         main = layers.Dense(100, activation=activ_hidden, kernel_regularizer=reg)(main)
         main = layers.Dense(100, activation=activ_hidden, kernel_regularizer=reg)(main)
 

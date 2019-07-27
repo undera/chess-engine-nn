@@ -1,7 +1,6 @@
 import logging
 import os
 import pickle
-import random
 import sys
 from typing import Set
 
@@ -107,8 +106,8 @@ def play_with_score(pwhite, pblack):
     losing.load_moves()
     draw: Set[MoveRecord] = set()
 
-    # if not is_debug():
-    #    nn.learn(winning.dataset, 20)
+    if not is_debug():
+        nn.train(winning.dataset, 20)
 
     rnd = max([x.from_round for x in winning.dataset | losing.dataset]) if winning.dataset else 0
     while True:
@@ -119,25 +118,28 @@ def play_with_score(pwhite, pblack):
 
         if result == '1-0':
             for x, move in enumerate(wmoves):
-                move.forced_eval = 0.5 + 0.5 * float(x) / len(wmoves)
+                move.forced_eval = 1.0
             for x, move in enumerate(bmoves):
-                move.forced_eval = 0.5 - 0.5 * float(x) / len(bmoves)
+                move.forced_eval = 0.0
             winning.update(wmoves)
             losing.update(bmoves)
+            nn.train(winning.dataset, 1)
         elif result == '0-1':
             for x, move in enumerate(bmoves):
-                move.forced_eval = 0.5 + 0.5 * float(x) / len(bmoves)
+                move.forced_eval = 1.0
             for x, move in enumerate(wmoves):
-                move.forced_eval = 0.5 - 0.5 * float(x) / len(wmoves)
+                move.forced_eval = 0.0
             winning.update(bmoves)
             losing.update(wmoves)
+            nn.train(winning.dataset, 1)
         else:
-            for x, move in enumerate(bmoves):
-                move.forced_eval = 0.5 - 0.5 * float(x) / len(bmoves)
-            for x, move in enumerate(wmoves):
-                move.forced_eval = 0.5 - 0.5 * float(x) / len(wmoves)
-            draw.update(wmoves)
-            draw.update(bmoves)
+            pass
+            # for x, move in enumerate(bmoves):
+            #    move.forced_eval = 0.5
+            # for x, move in enumerate(wmoves):
+            #    move.forced_eval = 0.5
+            # draw.update(wmoves)
+            # draw.update(bmoves)
 
         rnd += 1
         if not (rnd % 960):
@@ -147,17 +149,17 @@ def play_with_score(pwhite, pblack):
             # losing.dataset -= winning.dataset
             # losing.dataset -= draw
 
-            logging.info("W: %s\tL: %s\tD: %s\tNon-dec: %s", len(winning.dataset), len(losing.dataset), len(draw))
+            logging.info("W: %s\tL: %s\tD: %s", len(winning.dataset), len(losing.dataset), len(draw))
 
             winning.dump_moves()
             losing.dump_moves()
             dataset = winning.dataset | losing.dataset
 
-            lst = list(draw)
-            for x in lst:
-                x.forced_eval = 0.5 if not x.ignore else 0  # random.random()
-            random.shuffle(lst)
-            dataset.update(lst[:max(len(dataset), 1)])
+            # lst = list(draw)
+            # for x in lst:
+            #    x.forced_eval = 0.5 if not x.ignore else 0  # random.random()
+            # random.shuffle(lst)
+            # dataset.update(lst[:max(len(dataset), 1)])
             # dataset.update(lst[:max(10 * non_decisive_cnt + 1, len(dataset) // 2000)])
 
             nn.train(dataset, 20)

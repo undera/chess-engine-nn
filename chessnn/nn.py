@@ -51,7 +51,7 @@ class NN(object):
         cbs = [callbacks.TensorBoard('/tmp/tensorboard/%d' % time.time())] if epochs > 1 else []
         res = self._model.fit(inputs, outputs,  # sample_weight=np.array(sample_weights),
                               validation_split=0.1 if validation_data is None else 0.0, shuffle=True,
-                              callbacks=cbs, verbose=2,
+                              callbacks=cbs, verbose=2 if epochs > 1 else 0,
                               epochs=epochs, )
         logging.info("Trained: %s", {x: y[-1] for x, y in res.history.items()})
 
@@ -79,10 +79,10 @@ class NN(object):
 
 class NNChess(NN):
     def _get_nn(self):
-        reg = regularizers.l2(0.0001)
+        reg = regularizers.l2(0.001)
         activ_hidden = "relu"  # linear relu elu sigmoid tanh softmax
         activ_out = "softmax"  # linear relu elu sigmoid tanh softmax
-        optimizer = "nadam"  # sgd rmsprop adagrad adadelta adamax adam nadam
+        optimizer = "rmsprop"  # sgd rmsprop adagrad adadelta adamax adam nadam
 
         position = layers.Input(shape=(2, 8, 8, len(PIECE_TYPES)), name="position")
         flags = layers.Input(shape=(2,), name="flags")
@@ -97,12 +97,12 @@ class NNChess(NN):
             return out
 
         branch = main
-        for _ in range(1, 4):
-            branch = _residual(branch, 8 * _)
+        for _ in range(1, 2):
+            branch = _residual(branch, 8 * 8 * _)
 
         main = layers.concatenate([main, branch])
 
-        for _ in range(1, 4):
+        for _ in range(1, 2):
             main = _residual(main, 8 * 8 * _)
 
         out_moves = layers.Dense(4096, activation=activ_out, name="moves")(main)

@@ -8,7 +8,7 @@ from chess import WHITE, BLACK
 
 from chessnn import BoardOptim, MoveRecord, is_debug
 from chessnn.nn import NNChess
-from chessnn.player import Player
+from chessnn.player import Player, Stockfish
 
 
 def play_one_game(pwhite, pblack, rnd):
@@ -104,8 +104,8 @@ def play_with_score(pwhite, pblack):
     draw: Set[MoveRecord] = set()
 
     if not is_debug():
-        # nn.train(winning.dataset, 20)
-        # return
+        nn.train(winning.dataset, 20);
+        return
         pass
 
     rnd = max([x.from_round for x in winning.dataset | losing.dataset]) if winning.dataset else 0
@@ -122,7 +122,7 @@ def play_with_score(pwhite, pblack):
                 move.forced_eval = 0.0
             winning.update(wmoves)
             losing.update(bmoves)
-            nn.train(winning.dataset | losing.dataset, 1)
+            # nn.train(winning.dataset | losing.dataset, 1)
         elif result == '0-1':
             for x, move in enumerate(bmoves):
                 move.forced_eval = 1.0
@@ -130,7 +130,7 @@ def play_with_score(pwhite, pblack):
                 move.forced_eval = 0.0
             winning.update(bmoves)
             losing.update(wmoves)
-            nn.train(winning.dataset | losing.dataset, 1)
+            # nn.train(winning.dataset | losing.dataset, 1)
         else:
             pass
             # for x, move in enumerate(bmoves):
@@ -141,7 +141,7 @@ def play_with_score(pwhite, pblack):
             # draw.update(bmoves)
 
         rnd += 1
-        if not (rnd % 960):
+        if not (rnd % 96):
             # if had_decisive:
             # winning.dataset -= losing.dataset
             # winning.dataset -= draw
@@ -213,15 +213,17 @@ if __name__ == "__main__":
     logging.basicConfig(level=logging.DEBUG if is_debug() else logging.INFO)
     # mpl_logger = logging.getLogger('matplotlib')
     # mpl_logger.setLevel(logging.WARNING)
+    if os.path.exists("nn.hdf5"):
+        os.remove("nn.hdf5")
 
     nn = NNChess("nn.hdf5")
     white = Player("Lisa", WHITE, nn)
-    black = Player("Karen", BLACK, nn)
+    # black = Player("Karen", BLACK, nn)
 
-    # black = Stockfish(BLACK)
+    black = Stockfish(BLACK)
 
-    # play_per_turn(white, black)
     try:
+        # play_per_turn(white, black)
         play_with_score(white, black)
     finally:
         if black.name == 'Stockfish':

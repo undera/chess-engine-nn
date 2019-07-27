@@ -63,14 +63,14 @@ class BoardOptim(chess.Board):
         super().set_chess960_pos(sharnagl)
         self.initial_fen = self.fen()
 
-    def write_pgn(self, fname, roundd):
+    def write_pgn(self, wp, bp, fname, roundd):
         journal = pgn.Game.from_board(self)
         journal.headers.clear()
         if self.chess960:
             journal.headers["Variant"] = "Chess960"
         journal.headers["FEN"] = self.initial_fen
-        journal.headers["White"] = "Lisa"
-        journal.headers["Black"] = "Karen"
+        journal.headers["White"] = wp.name
+        journal.headers["Black"] = bp.name
         journal.headers["Round"] = roundd
         journal.headers["Result"] = self.result(claim_draw=True)
         journal.headers["Site"] = self.explain()

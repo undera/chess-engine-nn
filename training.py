@@ -30,7 +30,7 @@ def play_one_game(pwhite, pblack, rnd):
                 break
 
             if is_debug():
-                board.write_pgn(os.path.join(os.path.dirname(__file__), "last.pgn"), rnd)
+                board.write_pgn(pwhite, pblack, os.path.join(os.path.dirname(__file__), "last.pgn"), rnd)
     except:
         last = board.move_stack[-1]
         logging.warning("Final move: %s %s %s", last, last.from_square, last.to_square)
@@ -38,13 +38,10 @@ def play_one_game(pwhite, pblack, rnd):
         raise
     finally:
         if board.move_stack:
-            board.write_pgn(os.path.join(os.path.dirname(__file__), "last.pgn"), rnd)
+            board.write_pgn(pwhite, pblack, os.path.join(os.path.dirname(__file__), "last.pgn"), rnd)
 
-    avg_score_w = sum([x.get_eval() for x in pwhite.moves_log]) / float(len(pwhite.moves_log))
-    avg_score_b = sum([x.get_eval() for x in pblack.moves_log]) / float(len(pblack.moves_log))
     result = board.result(claim_draw=True)
-    logging.info("Game #%d:\t%s by %s,\t%d moves,\t%.2f / %.2f AMS", rnd, result,
-                 board.explain(), board.fullmove_number, avg_score_w, avg_score_b)
+    logging.info("Game #%d:\t%s by %s,\t%d moves", rnd, result, board.explain(), board.fullmove_number)
 
     return result
 
@@ -107,8 +104,9 @@ def play_with_score(pwhite, pblack):
     draw: Set[MoveRecord] = set()
 
     if not is_debug():
-        nn.train(winning.dataset, 20)
-        #return
+        # nn.train(winning.dataset, 20)
+        # return
+        pass
 
     rnd = max([x.from_round for x in winning.dataset | losing.dataset]) if winning.dataset else 0
     while True:
@@ -124,6 +122,7 @@ def play_with_score(pwhite, pblack):
                 move.forced_eval = 0.0
             winning.update(wmoves)
             losing.update(bmoves)
+            nn.train(winning.dataset | losing.dataset, 1)
         elif result == '0-1':
             for x, move in enumerate(bmoves):
                 move.forced_eval = 1.0
@@ -131,6 +130,7 @@ def play_with_score(pwhite, pblack):
                 move.forced_eval = 0.0
             winning.update(bmoves)
             losing.update(wmoves)
+            nn.train(winning.dataset | losing.dataset, 1)
         else:
             pass
             # for x, move in enumerate(bmoves):
@@ -171,8 +171,9 @@ def play_per_turn(pwhite, pblack):
     dataset = DataSet("moves.pkl")
     dataset.load_moves()
     if not is_debug() and dataset.dataset:
-        pwhite.nn.train(dataset.dataset, 20)
-        nn.save("nn.hdf5")
+        # pwhite.nn.train(dataset.dataset, 20)
+        # nn.save("nn.hdf5")
+        pass
 
     rnd = max([x.from_round for x in dataset.dataset]) if dataset.dataset else 0
     while True:
@@ -214,8 +215,14 @@ if __name__ == "__main__":
     # mpl_logger.setLevel(logging.WARNING)
 
     nn = NNChess("nn.hdf5")
-    white = Player(WHITE, nn)
-    black = Player(BLACK, nn)
+    white = Player("Lisa", WHITE, nn)
+    black = Player("Karen", BLACK, nn)
+
+    # black = Stockfish(BLACK)
 
     # play_per_turn(white, black)
-    play_with_score(white, black)
+    try:
+        play_with_score(white, black)
+    finally:
+        if black.name == 'Stockfish':
+            black.engine.quit()

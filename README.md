@@ -157,3 +157,6 @@ Let me take some rest from working for new startup. Starting to change the code 
 - reading [article](https://towardsdatascience.com/how-to-teach-an-ai-to-play-games-deep-reinforcement-learning-28f9b920440a) about Q-Learning, maybe the learning strategy should change...
 
 Found out that training data were using positions _after_ move made as source of training. Oh, my...
+Fixing that seems helped learning a ton. Shame on me for overlooking this since the very beginning.
+
+I also made integration with UCI and now my NN plays versus Stockfish. Loses 100% of games, of course.

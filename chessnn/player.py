@@ -3,6 +3,7 @@ from typing import List
 
 import chess
 import numpy as np
+from chess.engine import SimpleEngine, INFO_SCORE
 
 from chessnn import MoveRecord, BoardOptim, nn
 
@@ -12,8 +13,9 @@ class Player(object):
     board: BoardOptim
     nn: nn.NN
 
-    def __init__(self, color, net) -> None:
+    def __init__(self, name, color, net) -> None:
         super().__init__()
+        self.name = name
         self.color = color
         # noinspection PyTypeChecker
         self.board = None
@@ -26,6 +28,16 @@ class Player(object):
 
         move, geval = self._choose_best_move(pos)
 
+        self._log_move(pos, move, geval, in_round)
+
+        self.board.push(move)
+
+        logging.debug("%d. %r %.2f\n%s", self.board.fullmove_number, move.uci(), geval, self.board.unicode())
+
+        not_over = move != chess.Move.null() and not self.board.is_game_over(claim_draw=False)
+        return not_over
+
+    def _log_move(self, pos, move, geval, in_round):
         if move != chess.Move.null():
             piece = self.board.piece_at(move.from_square)
             log_rec = self._get_moverec(pos, move, geval)
@@ -34,13 +46,6 @@ class Player(object):
 
             self.moves_log.append(log_rec)
             self.board.comment_stack.append(log_rec)
-
-        self.board.push(move)
-
-        logging.debug("%d. %r %.2f\n%s", self.board.fullmove_number, move.uci(), geval, self.board.unicode())
-
-        not_over = move != chess.Move.null() and not self.board.is_game_over(claim_draw=False)
-        return not_over
 
     def _choose_best_move(self, pos):
         moverec = self._get_moverec(pos, chess.Move.null(), 0.0)
@@ -100,3 +105,21 @@ class Player(object):
 
         new_move = chess.Move(flip(move.from_square), flip(move.to_square), move.promotion, move.drop)
         return new_move
+
+
+class Stockfish(Player):
+    def __init__(self, color) -> None:
+        super().__init__("Stockfish", color, None)
+        self.engine = SimpleEngine.popen_uci("stockfish")
+
+    def makes_move(self, in_round):
+        result = self.engine.play(self.board, chess.engine.Limit(time=0.100), info=INFO_SCORE)
+        logging.debug("SF move: %s, %s, %s", result.move, result.draw_offered, result.info)
+
+        pos = self.board.get_position() if self.color == chess.WHITE else self.board.mirror().get_position()
+        self._log_move(pos, result.move, result.info['score'].relative.score(), in_round)
+
+        self.board.push(result.move)
+
+        not_over = result.move != chess.Move.null() and not self.board.is_game_over(claim_draw=False)
+        return not_over

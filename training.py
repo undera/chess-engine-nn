@@ -111,8 +111,6 @@ def play_with_score(pwhite, pblack):
     #    nn.learn(winning.dataset, 20)
 
     rnd = max([x.from_round for x in winning.dataset | losing.dataset]) if winning.dataset else 0
-    non_decisive_cnt = 0
-    had_decisive = False
     while True:
         result = play_one_game(pwhite, pblack, rnd)
 
@@ -120,26 +118,24 @@ def play_with_score(pwhite, pblack):
         bmoves = pblack.get_moves()
 
         if result == '1-0':
-            had_decisive = True
             for x, move in enumerate(wmoves):
                 move.forced_eval = 0.5 + 0.5 * float(x) / len(wmoves)
             for x, move in enumerate(bmoves):
-                move.forced_eval = 0.5 - 0.5 * float(x) / len(wmoves)
+                move.forced_eval = 0.5 - 0.5 * float(x) / len(bmoves)
             winning.update(wmoves)
             losing.update(bmoves)
         elif result == '0-1':
             for x, move in enumerate(bmoves):
-                move.forced_eval = 0.5 + 0.5 * float(x) / len(wmoves)
+                move.forced_eval = 0.5 + 0.5 * float(x) / len(bmoves)
             for x, move in enumerate(wmoves):
                 move.forced_eval = 0.5 - 0.5 * float(x) / len(wmoves)
-            had_decisive = True
             winning.update(bmoves)
             losing.update(wmoves)
         else:
             for x, move in enumerate(bmoves):
-                move.forced_eval = 0.5 * float(x) / len(wmoves)
+                move.forced_eval = 0.5 - 0.5 * float(x) / len(bmoves)
             for x, move in enumerate(wmoves):
-                move.forced_eval = 0.5 * float(x) / len(wmoves)
+                move.forced_eval = 0.5 - 0.5 * float(x) / len(wmoves)
             draw.update(wmoves)
             draw.update(bmoves)
 
@@ -151,13 +147,7 @@ def play_with_score(pwhite, pblack):
             # losing.dataset -= winning.dataset
             # losing.dataset -= draw
 
-            if not had_decisive:
-                non_decisive_cnt += 1
-            else:
-                non_decisive_cnt = 0
-
-            logging.info("W: %s\tL: %s\tD: %s\tNon-dec: %s", len(winning.dataset), len(losing.dataset), len(draw),
-                         non_decisive_cnt)
+            logging.info("W: %s\tL: %s\tD: %s\tNon-dec: %s", len(winning.dataset), len(losing.dataset), len(draw))
 
             winning.dump_moves()
             losing.dump_moves()
@@ -167,16 +157,13 @@ def play_with_score(pwhite, pblack):
             for x in lst:
                 x.forced_eval = 0.5 if not x.ignore else 0  # random.random()
             random.shuffle(lst)
-            # dataset.update(lst[:10 * non_decisive_cnt])
+            dataset.update(lst[:max(len(dataset), 1)])
             # dataset.update(lst[:max(10 * non_decisive_cnt + 1, len(dataset) // 2000)])
 
-            if had_decisive or not non_decisive_cnt % 5:
-                nn.train(dataset, 20)
-                nn.save("nn.hdf5")
+            nn.train(dataset, 20)
+            nn.save("nn.hdf5")
 
             draw = set()
-            had_decisive = False
-            break
 
 
 def play_per_turn(pwhite, pblack):

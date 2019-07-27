@@ -5,23 +5,25 @@ import random
 import sys
 from typing import Set
 
-from chess import STARTING_FEN, WHITE, BLACK
+from chess import WHITE, BLACK
 
 from chessnn import BoardOptim, MoveRecord, is_debug
-from chessnn.nn import NN
+from chessnn.nn import NNChess
 from chessnn.player import Player
 
+mpl_logger = logging.getLogger('matplotlib')
+mpl_logger.setLevel(logging.WARNING)
 
-def play_one_game(pwhite, pblack, rnd, non_decisive_cnt=0):
+
+def play_one_game(pwhite, pblack, rnd):
     """
 
     :type pwhite: Player
     :type pblack: Player
     :type rnd: int
     """
-    board = BoardOptim(STARTING_FEN)
+    board = BoardOptim.from_chess960_pos(random.randint(0, 959))
     pwhite.board = board
-    pwhite.start_from = (rnd % 20, non_decisive_cnt)
     pblack.board = board
 
     while True:  # and board.fullmove_number < 150
@@ -90,14 +92,14 @@ def play_with_score(pwhite, pblack):
     losing.load_moves()
     draw: Set[MoveRecord] = set()
 
-    #if not is_debug():
+    # if not is_debug():
     #    nn.learn(winning.dataset, 20)
 
     rnd = max([x.from_round for x in winning.dataset | losing.dataset]) if winning.dataset else 0
     non_decisive_cnt = 0
     had_decisive = False
     while True:
-        result = play_one_game(pwhite, pblack, rnd, non_decisive_cnt)
+        result = play_one_game(pwhite, pblack, rnd)
 
         wmoves = pwhite.get_moves()
         bmoves = pblack.get_moves()
@@ -164,7 +166,7 @@ def play_with_score(pwhite, pblack):
             dataset.update(lst[:max(10 * non_decisive_cnt + 1, len(dataset) // 2000)])
 
             if had_decisive or not non_decisive_cnt % 5:
-                nn.learn(dataset, 20)
+                nn.train(dataset, 20)
                 nn.save("nn.hdf5")
 
             draw = set()
@@ -190,18 +192,15 @@ def play_per_turn(pwhite, pblack):
         if not (rnd % 20):
             dataset.dump_moves()
 
-            nn.learn(dataset.dataset, 20)
+            nn.train(dataset.dataset, 20)
             nn.save("nn.hdf5")
 
 
 if __name__ == "__main__":
     sys.setrecursionlimit(10000)
-    mpl_logger = logging.getLogger('matplotlib')
-    mpl_logger.setLevel(logging.WARNING)
-
     logging.basicConfig(level=logging.DEBUG if is_debug() else logging.INFO)
 
-    nn = NN("nn.hdf5")
+    nn = NNChess()
     white = Player(WHITE, nn)
     black = Player(BLACK, nn)
 

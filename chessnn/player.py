@@ -1,9 +1,9 @@
 import logging
-from typing import List, Any
+import random
+from typing import List
 
 import chess
 import numpy as np
-import random
 
 from chessnn import MoveRecord, BoardOptim, nn, is_debug
 
@@ -23,8 +23,7 @@ class Player(object):
         self.moves_log = []
 
     def makes_move(self, in_round):
-        info = self.board.get_info() if self.color == chess.WHITE else self.board.mirror().get_info()
-        pos, attacked, defended, threatened, threats, material = info
+        pos = self.board.get_position() if self.color == chess.WHITE else self.board.mirror().get_position()
 
         move, possible_moves, geval = self._choose_best_move(pos)
         move_rec = self._mirror_move(move) if self.color == chess.BLACK else move
@@ -33,25 +32,13 @@ class Player(object):
         afrom[chess.square_file(move_rec.from_square)][chess.square_rank(move_rec.from_square)] = 1
         ato = np.full((8, 8), 0)
         ato[chess.square_file(move_rec.to_square)][chess.square_rank(move_rec.to_square)] = 1
-        self.board.multiplot("actual", pos, afrom, ato, attacked, defended, threats, threatened, possible_moves)
+        self.board.multiplot("actual", pos, afrom, ato, possible_moves)
 
         self.board.push(move)
 
-        self.board.turn = not self.board.turn
-        info = self.board.get_info()
-        apos, aattacked, adefended, athreatened, athreats, amaterial = info
-        self.board.turn = not self.board.turn
-
-        balance = [amaterial - material, aattacked.sum() - attacked.sum(), defended.sum() - adefended.sum(),
-                   athreats.sum() - threats.sum(), athreatened.sum() - threatened.sum()]  # TODO: lost mobility
-
         piece = self.board.piece_at(move.to_square)
-        log_rec = MoveRecord(position=pos, move=move_rec, kpis=balance, piece=piece.piece_type,
+        log_rec = MoveRecord(position=pos, move=move_rec, kpis=(), piece=piece.piece_type,
                              possible_moves=possible_moves)
-        log_rec.attacked = attacked
-        log_rec.defended = defended
-        log_rec.threatened = threatened
-        log_rec.threats = threats
         log_rec.from_round = in_round
 
         logging.debug("%d. %r %s %.2f", self.board.fullmove_number, move, geval, log_rec.get_eval())
@@ -63,9 +50,9 @@ class Player(object):
         return not_over
 
     def _choose_best_move(self, pos):
-        geval, wfrom, wto, pmoves, attacks, defences, threats, threatened = self.nn.query(pos[np.newaxis, ...])
+        move, geval = self.nn.inference([[pos, 0.0, 0]])
 
-        self.board.multiplot("NN", pos, wfrom, wto, attacks, defences, threats, threatened, pmoves)
+        # TODO self.board.multiplot("NN", pos, wfrom, wto, pmoves)
 
         if self.color == chess.BLACK:
             wfrom = np.fliplr(wfrom)

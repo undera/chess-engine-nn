@@ -4,10 +4,8 @@ import time
 from abc import abstractmethod
 
 import numpy as np
-from chess import PIECE_TYPES, square_file, square_rank
+from chess import PIECE_TYPES
 from tensorflow.python.keras import models, layers, utils, callbacks, regularizers
-
-from chessnn import MoveRecord
 
 
 class NN(object):
@@ -101,42 +99,19 @@ class NNChess(NN):
 
     def _data_to_training_set(self, data, is_inference=False):
         batch_len = len(data)
-        inputs_pos = np.full((batch_len, 2, 8, 8, len(PIECE_TYPES)), 0)
 
+        inputs_pos = np.full((batch_len, 2, 8, 8, len(PIECE_TYPES)), 0.0)
+        out_moves = np.full((batch_len, 4096), 0.0)
         evals = np.full((batch_len, 2), 0.0)
-        out_from = np.full((batch_len, 8, 8), 0.0)
-        out_to = np.full((batch_len, 8, 8), 0.0)
-
-        pmoves = np.full((batch_len, 8, 8), 0.0)
-        attacks = np.full((batch_len, 8, 8), 0.0)
-        defences = np.full((batch_len, 8, 8), 0.0)
-        threats = np.full((batch_len, 8, 8), 0.0)
-        threatened = np.full((batch_len, 8, 8), 0.0)
-
-        outputs = [evals, out_from, out_to] + [pmoves, attacks, defences, threats, threatened]
 
         batch_n = 0
-        for rec in data:
-            assert isinstance(rec, MoveRecord)
-            score = rec.get_eval()
-            assert score is not None
+        for pos, evl, move in data:
+            evals[batch_n][0] = evl
+            evals[batch_n][1] = 1.0 - evl
+            inputs_pos[batch_n] = pos
 
-            evals[batch_n][0] = score
-            evals[batch_n][1] = 1.0 - score
-            inputs_pos[batch_n] = rec.position
-
-            out_from[batch_n] = np.full((8, 8), 0.0 if score >= 0.5 else 1.0 / 64)
-            out_to[batch_n] = np.full((8, 8), 0.0 if score >= 0.5 else 1.0 / 64)
-
-            out_from[batch_n][square_file(rec.from_square)][square_rank(rec.from_square)] = 1 if score >= 0.5 else 0
-            out_to[batch_n][square_file(rec.to_square)][square_rank(rec.to_square)] = 1 if score >= 0.5 else 0
-
-            pmoves[batch_n] = rec.possible_moves
-            attacks[batch_n] = rec.attacked
-            defences[batch_n] = rec.defended
-            threats[batch_n] = rec.threats
-            threatened[batch_n] = rec.threatened
+            out_moves[batch_n][move] = 1.0
 
             batch_n += 1
 
-        return [inputs_pos], outputs
+        return [inputs_pos], [out_moves, evals]

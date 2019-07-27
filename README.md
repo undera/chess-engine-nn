@@ -145,3 +145,13 @@ Doing several experiments:
 - Playing back and forth with aux outputs of NN. They're still in question.
 
 Also figured out my residual unit were increasing of size with each level. Reworked that to constant size of 8 * 8 * 12 (initial inputs)
+
+### 27 Jul 2019
+
+Let me take some rest from working for new startup. Starting to change the code with following thoughts:
+
+- Having 2 outputs 8x8 is somehow hard to train. Let's train 64*64=4096 possible moves output 
+- Let's switch to [Chess960 aka Fischerandom](https://en.wikipedia.org/wiki/Chess960) for better training variety, since it is generalization over classical Chess
+- Still no good solution for 3-fold and 50-move avoiding
+- for now, model's structure will get back to 2-layer dense, to speed up experiments
+- reading [article](https://towardsdatascience.com/how-to-teach-an-ai-to-play-games-deep-reinforcement-learning-28f9b920440a) about Q-Learning, maybe the learning strategy should change...

@@ -139,53 +139,19 @@ class BoardOptim(chess.Board):
         self._fens.pop(-1)
         return super().pop()
 
-    def get_info(self):
+    def get_position(self):
         pos = np.full((2, 8, 8, len(chess.PIECE_TYPES)), 0)
-        attacked = np.full((8, 8,), 0.0)
-        defended = np.full((8, 8,), 0.0)
-        threatened = np.full((8, 8,), 0.0)
-        threats = np.full((8, 8,), 0.0)
-        material = 0
         for square in chess.SQUARES:
             piece = self.piece_at(square)
 
             if not piece:
                 continue
 
-            material += PIECE_VALUES[piece.piece_type] if piece.color == self.turn else -PIECE_VALUES[piece.piece_type]
-
             pos[int(piece.color)][square_file(square)][square_rank(square)][piece.piece_type - 1] = 1
-
-            attackers = self.attackers(self.turn, square)
-            attacked[square_file(square)][square_rank(square)] += bool(attackers) and piece.color != self.turn
-
-            defenders = self.attackers(self.turn, square)
-            defended[square_file(square)][square_rank(square)] += bool(defenders) and piece.color == self.turn
-
-            threaters = self.attackers(not self.turn, square)
-            threatened[square_file(square)][square_rank(square)] += bool(threaters) and piece.color == self.turn
-            if self.turn == piece.color:
-                for tsq in threaters:
-                    threats[square_file(tsq)][square_rank(tsq)] = 1
 
         pos.flags.writeable = False
 
-        attacked[attacked > 0] = 1
-        defended[defended > 0] = 1
-        threatened[threatened > 0] = 1
-        threats[threats > 0] = 1
-
-        attacked = attacked / attacked.sum() if attacked.any() else attacked
-        defended = defended / defended.sum() if defended.any() else defended
-        threatened = threatened / threatened.sum() if threatened.any() else threatened
-        threats = threats / threats.sum() if threats.any() else threats
-
-        assert 0 <= attacked.sum() <= 1.001, attacked.sum()
-        assert 0 <= defended.sum() <= 1.001, defended.sum()
-        assert 0 <= threatened.sum() <= 1.001, threatened.sum()
-        assert 0 <= threats.sum() <= 1.001, threats.sum()
-
-        return pos, attacked, defended, threatened, threats, material
+        return pos
 
     def get_evals(self, fen):
         evals = [self._get_material_balance(fen), self._get_mobility(), self._get_attacks()]
@@ -255,7 +221,7 @@ class BoardOptim(chess.Board):
 
         fig.set_title(caption)
 
-    def multiplot(board, memo, pos, wfrom, wto, attacks, defences, threats, threatened, pmoves):
+    def multiplot(board, memo, pos, wfrom, wto, pmoves):
         if not is_debug() or board.fullmove_number < 1:
             return
 
@@ -265,12 +231,6 @@ class BoardOptim(chess.Board):
 
         board._plot(wfrom, pos, axes[0][0], "wfrom")
         board._plot(wto, pos, axes[0][1], "wto")
-
-        board._plot(attacks, pos, axes[1][0], "attacks")
-        board._plot(defences, pos, axes[1][1], "defences")
-
-        board._plot(threats, pos, axes[2][0], "threats")
-        board._plot(threatened, pos, axes[2][1], "threatened")
 
         board._plot(pmoves, pos, axes[3][0], "possible moves")
 

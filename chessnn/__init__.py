@@ -22,7 +22,9 @@ PIECE_VALUES = {
 
 
 class MyStringExporter(pgn.StringExporter):
-    def __init__(self, comments):
+    comm_stack: list
+
+    def __init__(self, comments: list):
         super().__init__(headers=True, variations=True, comments=True)
         self.comm_stack = copy.copy(comments)
 
@@ -98,7 +100,7 @@ class BoardOptim(chess.Board):
         cnt = Counter(self._fens)
         return cnt[self._fens[-1]] >= 3
 
-    def can_claim_threefold_repetition(self):
+    def can_claim_threefold_repetition2(self):
         """
         Draw by threefold repetition can be claimed if the position on the
         board occured for the third time or if such a repetition is reached
@@ -139,11 +141,11 @@ class BoardOptim(chess.Board):
     def can_claim_draw1(self):
         return super().can_claim_draw() or self.fullmove_number > 100
 
-    def push1(self, move):
+    def push(self, move):
         super().push(move)
         self._fens.append(self.epd().replace(" w ", " . ").replace(" b ", " . "))
 
-    def pop1(self):
+    def pop(self):
         self._fens.pop(-1)
         return super().pop()
 
@@ -252,8 +254,10 @@ class BoardOptim(chess.Board):
 class MoveRecord(object):
     piece: chess.Piece
 
-    def __init__(self, position=None, move=None, kpis=None, piece=None) -> None:
+    def __init__(self, position, move, is_repeat, fifty_progress, piece=None) -> None:
         super().__init__()
+        self.fifty_progress = fifty_progress
+        self.is_repeat = is_repeat
         self.forced_eval = None
         self.ignore = False
 
@@ -268,7 +272,6 @@ class MoveRecord(object):
 
         self.to_square = move.to_square
         self.from_square = move.from_square
-        self.kpis = [int(x) for x in kpis]
 
     def __str__(self) -> str:
         return json.dumps({x: y for x, y in self.__dict__.items() if x not in ('forced_eval', 'kpis')})
@@ -276,7 +279,8 @@ class MoveRecord(object):
     def __hash__(self):
         h = xxhash.xxh64()
         h.update(self.position)
-        return sum([hash(x) for x in (h.intdigest(), self.to_square, self.from_square, self.piece)])
+        return sum([hash(x) for x in
+                    (h.intdigest(), self.to_square, self.from_square, self.piece, self.fifty_progress, self.is_repeat)])
 
     def __eq__(self, o) -> bool:
         """
@@ -287,7 +291,8 @@ class MoveRecord(object):
         po = xxhash.xxh64()
         po.update(o.position)
 
-        return pself.intdigest() == po.intdigest() and self.piece == o.piece and self.from_square == o.from_square and self.to_square == o.to_square
+        return pself.intdigest() == po.intdigest() and self.piece == o.piece and self.from_square == o.from_square \
+               and self.to_square == o.to_square and self.is_repeat == o.is_repeat and self.fifty_progress == o.fifty_progress
 
     def __ne__(self, o) -> bool:
         """
@@ -299,47 +304,10 @@ class MoveRecord(object):
         if self.forced_eval is not None:
             return self.forced_eval
 
-        # material, attacks, defences, threats, threatened
-
-        # first criteria
-        if self.kpis[0] < 0:  # material loss
-            return 0.0
-
-        if self.kpis[4] > 0:  # threats up
-            return 0.0
-
-        if self.kpis[2] < 0:  # defence down
-            return 0.0
-
-        # second criteria
-        if self.kpis[0] > 0:  # material up
-            return 1.0
-
-        if self.kpis[2] > 0:  # defence up
-            return 1.0
-
-        if self.kpis[4] < 0:  # threats down
-            return 1.0
-
-        # third criteria
-        if self.kpis[1] > 0:  # attack more
-            return 0.75
-
-        if self.kpis[1] < 0:  # attack less
-            return 0.0
-
-        # fourth criteria
-        # if self.kpis[1] > 0:  # mobility up
-        #    return 0.5
-
-        # if self.kpis[1] < 0:  # mobility down
-        #    return 0.0
-
-        # fifth criteria
-        if self.piece == chess.PAWN:
-            return 0.1
-
         return 0.0
+
+    def get_move_num(self):
+        return 64 * self.from_square + self.to_square
 
 
 def is_debug():

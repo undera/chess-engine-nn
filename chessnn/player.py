@@ -26,26 +26,40 @@ class Player(object):
 
         move, geval = self._choose_best_move(pos)
 
-        self.board.push(move)
-
-        logging.debug("%d. %r %.2f\n%s", self.board.fullmove_number, move.uci(), geval, self.board.unicode())
-
         if move != chess.Move.null():
-            piece = self.board.piece_at(move.to_square)
-            log_rec = MoveRecord(position=pos, move=move, kpis=(), piece=piece.piece_type)
+            piece = self.board.piece_at(move.from_square)
+            log_rec = self._get_moverec(pos, move, geval)
+            log_rec.piece = piece.piece_type
             log_rec.from_round = in_round
-            log_rec.forced_eval = geval
 
             self.moves_log.append(log_rec)
             self.board.comment_stack.append(log_rec)
+
+        self.board.push(move)
+
+        logging.debug("%d. %r %.2f\n%s", self.board.fullmove_number, move.uci(), geval, self.board.unicode())
 
         not_over = move != chess.Move.null() and not self.board.is_game_over(claim_draw=True)
         return not_over
 
     def _choose_best_move(self, pos):
-        scores4096, geval = self.nn.inference([[pos, 0.0, 0]])
+        moverec = self._get_moverec(pos, chess.Move.null(), 0.0)
+        scores4096, geval = self.nn.inference([moverec])
         move = self._scores_to_move(scores4096)
         return move, geval[0]
+
+    def _get_moverec(self, pos, move, evl):
+        fifty = self.board.halfmove_clock / 100.0
+        repetition3 = float(self.board.is_repetition(2))
+
+        repetition = 0.0
+        if repetition3:
+            repetition = 0.5
+
+        moverec = MoveRecord(pos, move, repetition, fifty)
+        moverec.forced_eval = evl if not repetition else 0.0
+        moverec.forced_eval = evl if not repetition else 0.0
+        return moverec
 
     def _scores_to_move(self, scores_restored):
         cnt = 0
@@ -56,7 +70,7 @@ class Player(object):
                 move = flipped
 
             if not self.board.is_legal(move):
-                logging.debug("Invalid move suggested: %s", move)
+                # logging.debug("Invalid move suggested: %s", move)
                 cnt += 1
                 continue
 

@@ -10,6 +10,8 @@ import numpy as np
 from chess import PIECE_TYPES
 
 # noinspection PyProtectedMember
+from chessnn import MoveRecord
+
 logging.root.removeHandler(absl.logging._absl_handler)
 
 from tensorflow.python.keras import models, layers, utils, callbacks, regularizers
@@ -56,10 +58,6 @@ class NN(object):
         if validation_data is not None:
             self.validate(validation_data)
 
-        assert res.history['acc'][-1] >= self._train_acc_threshold, "Training has failed"
-        if validation_data is None:
-            assert res.history['val_acc'][-1] >= self._validate_acc_threshold
-
     def validate(self, data):
         logging.info("Preparing validation set...")
         inputs, outputs = self._data_to_training_set(data, False)
@@ -88,16 +86,16 @@ class NNChess(NN):
 
         position = layers.Input(shape=(2, 8, 8, len(PIECE_TYPES)), name="position")
 
-        main = layers.Flatten()(position)
+        flags = layers.Input(shape=(2,), name="flags")
+        main = layers.concatenate([layers.Flatten()(position), flags])
+
         main = layers.Dense(100, activation=activ_hidden, kernel_regularizer=reg)(main)
         main = layers.Dense(100, activation=activ_hidden, kernel_regularizer=reg)(main)
 
         out_moves = layers.Dense(4096, activation=activ_out, name="moves")(main)
         out_eval = layers.Dense(2, activation=activ_out, name="eval")(main)
 
-        outputs = [out_moves, out_eval]
-
-        model = models.Model(inputs=[position, ], outputs=outputs)
+        model = models.Model(inputs=[position, flags], outputs=[out_moves, out_eval])
         model.compile(optimizer=optimizer,
                       loss="categorical_crossentropy",
                       loss_weights=[1.0, 1.0],
@@ -108,17 +106,25 @@ class NNChess(NN):
         batch_len = len(data)
 
         inputs_pos = np.full((batch_len, 2, 8, 8, len(PIECE_TYPES)), 0.0)
+        inputs_flags = np.full((batch_len, 2), 0.0)
         out_moves = np.full((batch_len, 4096), 0.0)
         evals = np.full((batch_len, 2), 0.0)
 
         batch_n = 0
-        for pos, evl, move in data:
+        for move_rec in data:
+            assert isinstance(move_rec, MoveRecord)
+
+            pos, evl, move = move_rec.position, move_rec.forced_eval, move_rec.get_move_num()
+
             evals[batch_n][0] = evl
             evals[batch_n][1] = 1.0 - evl
             inputs_pos[batch_n] = pos
+
+            inputs_flags[batch_n][0] = move_rec.is_repeat
+            inputs_flags[batch_n][1] = move_rec.fifty_progress
 
             out_moves[batch_n][move] = 1.0
 
             batch_n += 1
 
-        return [inputs_pos], [out_moves, evals]
+        return [inputs_pos, inputs_flags], [out_moves, evals]

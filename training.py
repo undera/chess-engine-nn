@@ -23,16 +23,23 @@ def play_one_game(pwhite, pblack, rnd):
     pwhite.board = board
     pblack.board = board
 
-    while True:  # and board.fullmove_number < 150
-        if not pwhite.makes_move(rnd):
-            break
-        if not pblack.makes_move(rnd):
-            break
+    try:
+        while True:  # and board.fullmove_number < 150
+            if not pwhite.makes_move(rnd):
+                break
+            if not pblack.makes_move(rnd):
+                break
 
-        if is_debug():
+            if is_debug():
+                board.write_pgn(os.path.join(os.path.dirname(__file__), "last.pgn"), rnd)
+    except:
+        last = board.move_stack[-1]
+        logging.warning("Final move: %s %s %s", last, last.from_square, last.to_square)
+        logging.warning("Final position:\n%s", board.unicode())
+        raise
+    finally:
+        if board.move_stack:
             board.write_pgn(os.path.join(os.path.dirname(__file__), "last.pgn"), rnd)
-
-    board.write_pgn(os.path.join(os.path.dirname(__file__), "last.pgn"), rnd)
 
     avg_score_w = sum([x.get_eval() for x in pwhite.moves_log]) / float(len(pwhite.moves_log))
     avg_score_b = sum([x.get_eval() for x in pblack.moves_log]) / float(len(pblack.moves_log))
@@ -78,6 +85,13 @@ class DataSet(object):
         else:
             logging.debug("no increase")
 
+        while len(self.dataset) > 10000:
+            mmin = min([x.from_round for x in self.dataset])
+            logging.info("Removing things older than %s", mmin)
+            for x in list(self.dataset):
+                if x.from_round <= mmin:
+                    self.dataset.remove(x)
+
 
 def set_to_file(draw, param):
     lines = ["%s\n" % item for item in draw]
@@ -122,11 +136,15 @@ def play_with_score(pwhite, pblack):
             winning.update(bmoves)
             losing.update(wmoves)
         else:
+            for x, move in enumerate(bmoves):
+                move.forced_eval = 0.5 * float(x) / len(wmoves)
+            for x, move in enumerate(wmoves):
+                move.forced_eval = 0.5 * float(x) / len(wmoves)
             draw.update(wmoves)
             draw.update(bmoves)
 
         rnd += 1
-        if not (rnd % 20) or False:
+        if not (rnd % 960) or True:
             # if had_decisive:
             # winning.dataset -= losing.dataset
             # winning.dataset -= draw
@@ -137,20 +155,6 @@ def play_with_score(pwhite, pblack):
                 non_decisive_cnt += 1
             else:
                 non_decisive_cnt = 0
-
-            while len(winning.dataset) > 10000:
-                mmin = min([x.from_round for x in winning.dataset])
-                logging.info("Removing from winning things older than %s", mmin)
-                for x in list(winning.dataset):
-                    if x.from_round <= mmin:
-                        winning.dataset.remove(x)
-
-            while len(losing.dataset) > 10000:
-                mmin = min([x.from_round for x in losing.dataset])
-                logging.info("Removing from losing things older than %s", mmin)
-                for x in list(losing.dataset):
-                    if x.from_round <= mmin:
-                        losing.dataset.remove(x)
 
             logging.info("W: %s\tL: %s\tD: %s\tNon-dec: %s", len(winning.dataset), len(losing.dataset), len(draw),
                          non_decisive_cnt)
@@ -177,23 +181,40 @@ def play_with_score(pwhite, pblack):
 def play_per_turn(pwhite, pblack):
     dataset = DataSet("moves.pkl")
     dataset.load_moves()
-    if not is_debug():
-        pwhite.nn.learn(dataset.dataset, 20)
+    if not is_debug() and dataset.dataset:
+        pwhite.nn.train(dataset.dataset, 20)
         nn.save("nn.hdf5")
 
     rnd = max([x.from_round for x in dataset.dataset]) if dataset.dataset else 0
     while True:
         result = play_one_game(pwhite, pblack, rnd)
+        wmoves = pwhite.get_moves()
+        bmoves = pblack.get_moves()
 
-        moves = pwhite.get_moves() + pblack.get_moves()
-        moves = list(filter(lambda x: x.get_eval() > 0, moves))
+        if result == '1-0':
+            for x, move in enumerate(wmoves):
+                move.forced_eval = 0.5 + 0.5 * float(x) / len(wmoves)
+            for x, move in enumerate(bmoves):
+                move.forced_eval = 0.5 - 0.5 * float(x) / len(wmoves)
+        elif result == '0-1':
+            for x, move in enumerate(bmoves):
+                move.forced_eval = 0.5 + 0.5 * float(x) / len(wmoves)
+            for x, move in enumerate(wmoves):
+                move.forced_eval = 0.5 - 0.5 * float(x) / len(wmoves)
+        else:
+            for x, move in enumerate(bmoves):
+                move.forced_eval = 0.0
+            for x, move in enumerate(wmoves):
+                move.forced_eval = 0.0
+
+        moves = wmoves + bmoves
         dataset.update(moves)
 
         rnd += 1
-        if not (rnd % 20):
+        if not (rnd % 960) or not (rnd % 96):
             dataset.dump_moves()
 
-            nn.train(dataset.dataset, 20)
+            nn.train(dataset.dataset, 10)
             nn.save("nn.hdf5")
 
 
@@ -207,5 +228,5 @@ if __name__ == "__main__":
     white = Player(WHITE, nn)
     black = Player(BLACK, nn)
 
-    # play_per_turn(white, black)
-    play_with_score(white, black)
+    play_per_turn(white, black)
+    # play_with_score(white, black)

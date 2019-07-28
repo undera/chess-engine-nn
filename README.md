@@ -159,4 +159,6 @@ Let me take some rest from working for new startup. Starting to change the code 
 Found out that training data were using positions _after_ move made as source of training. Oh, my...
 Fixing that seems helped learning a ton. Shame on me for overlooking this since the very beginning.
 
-I also made integration with UCI and now my NN plays versus Stockfish. Loses 100% of games, of course.
+I also made integration with UCI and now my NN plays versus Stockfish. Loses 100% of games, of course. Let it play with SF overnight...
+
+... it played 5000 games and dozens of re-trainings, but did not improve. I'll need to experiment more, but I see important bug fixed.

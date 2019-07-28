@@ -81,7 +81,7 @@ class DataSet(object):
         else:
             logging.debug("no increase")
 
-        while len(self.dataset) > 10000:
+        while len(self.dataset) > 100000:
             mmin = min([x.from_round for x in self.dataset])
             logging.info("Removing things older than %s", mmin)
             for x in list(self.dataset):
@@ -104,8 +104,7 @@ def play_with_score(pwhite, pblack):
     draw: Set[MoveRecord] = set()
 
     if not is_debug():
-        nn.train(winning.dataset, 20);
-        return
+        nn.train(winning.dataset | losing.dataset, 20);return
         pass
 
     rnd = max([x.from_round for x in winning.dataset | losing.dataset]) if winning.dataset else 0
@@ -132,21 +131,20 @@ def play_with_score(pwhite, pblack):
             losing.update(wmoves)
             # nn.train(winning.dataset | losing.dataset, 1)
         else:
-            pass
-            # for x, move in enumerate(bmoves):
-            #    move.forced_eval = 0.5
-            # for x, move in enumerate(wmoves):
-            #    move.forced_eval = 0.5
-            # draw.update(wmoves)
-            # draw.update(bmoves)
+            for x, move in enumerate(bmoves):
+                move.forced_eval = 0.5
+            for x, move in enumerate(wmoves):
+                move.forced_eval = 0.5
+            draw.update(wmoves)
+            draw.update(bmoves)
 
         rnd += 1
         if not (rnd % 96):
             # if had_decisive:
-            # winning.dataset -= losing.dataset
-            # winning.dataset -= draw
-            # losing.dataset -= winning.dataset
-            # losing.dataset -= draw
+            winning.dataset -= losing.dataset
+            winning.dataset -= draw
+            losing.dataset -= winning.dataset
+            losing.dataset -= draw
 
             logging.info("W: %s\tL: %s\tD: %s", len(winning.dataset), len(losing.dataset), len(draw))
 
@@ -211,10 +209,9 @@ def play_per_turn(pwhite, pblack):
 if __name__ == "__main__":
     sys.setrecursionlimit(10000)
     logging.basicConfig(level=logging.DEBUG if is_debug() else logging.INFO)
-    # mpl_logger = logging.getLogger('matplotlib')
-    # mpl_logger.setLevel(logging.WARNING)
-    if os.path.exists("nn.hdf5"):
-        os.remove("nn.hdf5")
+
+    # if os.path.exists("nn.hdf5"):
+    #    os.remove("nn.hdf5")
 
     nn = NNChess("nn.hdf5")
     white = Player("Lisa", WHITE, nn)

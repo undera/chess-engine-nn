@@ -11,6 +11,9 @@ import xxhash
 from chess import pgn, square_file, square_rank
 from matplotlib import pyplot
 
+mpl_logger = logging.getLogger('matplotlib')
+mpl_logger.setLevel(logging.WARNING)
+
 PIECE_VALUES = {
     chess.PAWN: 1,
     chess.KNIGHT: 3,
@@ -279,8 +282,7 @@ class MoveRecord(object):
     def __hash__(self):
         h = xxhash.xxh64()
         h.update(self.position)
-        return sum([hash(x) for x in
-                    (h.intdigest(), self.to_square, self.from_square, self.piece, self.fifty_progress, self.is_repeat)])
+        return sum([hash(x) for x in (h.intdigest(), self.to_square, self.from_square, self.piece, self.is_repeat)])
 
     def __eq__(self, o) -> bool:
         """
@@ -292,7 +294,7 @@ class MoveRecord(object):
         po.update(o.position)
 
         return pself.intdigest() == po.intdigest() and self.piece == o.piece and self.from_square == o.from_square \
-               and self.to_square == o.to_square and self.is_repeat == o.is_repeat and self.fifty_progress == o.fifty_progress
+               and self.to_square == o.to_square and self.is_repeat == o.is_repeat
 
     def __ne__(self, o) -> bool:
         """

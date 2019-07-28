@@ -88,6 +88,8 @@ class NNChess(NN):
         flags = layers.Input(shape=(2,), name="flags")
         main = layers.concatenate([layers.Flatten()(position), flags])
 
+        branch = main
+        """
         def _residual(inp, size):
             # out = layers.Dropout(rate=0.05)(inp)
             inp = layers.Dense(size, activation=activ_hidden, kernel_regularizer=reg)(inp)
@@ -96,14 +98,17 @@ class NNChess(NN):
             # out = layers.Dense(size, activation=activ_hidden, kernel_regularizer=reg)(out)
             return out
 
-        branch = main
-        for _ in range(1, 2):
-            branch = _residual(branch, 8 * 8 * _)
+        for _ in range(2, 1, -1):
+            branch = _residual(branch, 64 * 8)
 
         main = layers.concatenate([main, branch])
 
-        for _ in range(1, 2):
-            main = _residual(main, 8 * 8 * _)
+        for _ in range(2, 1, -1):
+            main = _residual(main, 64 * 8)
+        """
+        main = layers.Dense(512, activation=activ_hidden, kernel_regularizer=reg)(main)
+        main = layers.Dropout(0.1)(main)
+        main = layers.Dense(256, activation=activ_hidden, kernel_regularizer=reg)(main)
 
         out_moves = layers.Dense(4096, activation=activ_out, name="moves")(main)
         out_eval = layers.Dense(2, activation=activ_out, name="eval")(branch)
@@ -111,7 +116,7 @@ class NNChess(NN):
         model = models.Model(inputs=[position, flags], outputs=[out_moves, out_eval])
         model.compile(optimizer=optimizer,
                       loss="categorical_crossentropy",
-                      loss_weights=[1.0, 1.0],
+                      loss_weights=[1.0, 0.5],
                       metrics=['categorical_accuracy'])
         return model
 

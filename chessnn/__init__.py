@@ -170,42 +170,6 @@ class BoardOptim(chess.Board):
 
         return pos
 
-    def get_evals(self, fen):
-        evals = [self._get_material_balance(fen), self._get_mobility(), self._get_attacks()]
-        self.turn = not self.turn
-        evals.append(self._get_attacks())
-        self.turn = not self.turn
-        return evals
-
-    def _get_material_balance(self, fen):
-        chars = Counter(fen)
-        score = 0
-        for piece in PIECE_VALUES:
-            if piece in chars:
-                score += PIECE_VALUES[piece] * chars[piece]
-
-            if piece.lower() in chars:
-                score -= PIECE_VALUES[piece] * chars[piece.lower()]
-
-        if self.turn == chess.WHITE:
-            return score
-        else:
-            return -score
-
-    def _get_mobility(self):
-        moves = list(self.generate_legal_moves())
-        mobility = len(moves)
-        return mobility
-
-    def _get_attacks(self):
-        attacks = 0
-        moves = list(self.generate_legal_moves())
-        for move in moves:
-            dest_piece = self.piece_at(move.to_square)
-            if dest_piece:
-                attacks += PIECE_VALUES[dest_piece.symbol().upper()]
-        return attacks
-
     def _plot(board, matrix, position, fig, caption):
         """
         :type matrix: numpy.array
@@ -261,20 +225,15 @@ class BoardOptim(chess.Board):
 class MoveRecord(object):
     piece: chess.Piece
 
-    def __init__(self, position, move, is_repeat, fifty_progress, piece=None) -> None:
+    def __init__(self, position, move, fifty_progress, piece=None) -> None:
         super().__init__()
         self.fifty_progress = fifty_progress
-        self.is_repeat = is_repeat
         self.forced_eval = None
         self.ignore = False
 
         self.position = position
         self.piece = piece
 
-        self.attacked = None
-        self.defended = None
-        self.threatened = None
-        self.threats = None
         self.from_round = 0
 
         self.to_square = move.to_square
@@ -286,7 +245,7 @@ class MoveRecord(object):
     def __hash__(self):
         h = xxhash.xxh64()
         h.update(self.position)
-        return sum([hash(x) for x in (h.intdigest(), self.to_square, self.from_square, self.piece, self.is_repeat)])
+        return sum([hash(x) for x in (h.intdigest(), self.to_square, self.from_square, self.piece)])
 
     def __eq__(self, o) -> bool:
         """
@@ -298,7 +257,7 @@ class MoveRecord(object):
         po.update(o.position)
 
         return pself.intdigest() == po.intdigest() and self.piece == o.piece and self.from_square == o.from_square \
-               and self.to_square == o.to_square and self.is_repeat == o.is_repeat
+               and self.to_square == o.to_square
 
     def __ne__(self, o) -> bool:
         """

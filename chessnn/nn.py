@@ -90,21 +90,20 @@ class NNChess(NN):
 
         conv1 = layers.Conv2D(32, kernel_size=(3, 3), activation=activ_hidden)(position)
         main1 = layers.concatenate([layers.Flatten()(conv1), flags])
-        main1 = layers.Dropout(0.1)(main1)
+        # main1 = layers.Dropout(0.1)(main1)
         dense1 = layers.Dense(8, activation=activ_hidden)(main1)
 
         conv2 = layers.Conv2D(16, kernel_size=(3, 3), activation=activ_hidden)(conv1)
         main2 = layers.concatenate([layers.Flatten()(conv2), dense1])
-        main2 = layers.Dropout(0.1)(main2)
+        # main2 = layers.Dropout(0.1)(main2)
         dense2 = layers.Dense(16, activation=activ_hidden)(main2)
 
         conv3 = layers.Conv2D(8, kernel_size=(3, 3), activation=activ_hidden)(conv2)
         main3 = layers.concatenate([layers.Flatten()(conv3), dense2])
-        main3 = layers.Dropout(0.1)(main3)
+        # main3 = layers.Dropout(0.1)(main3)
         dense3 = layers.Dense(32, activation=activ_hidden)(main3)
 
-        main = layers.Dense(64)(dense3)
-
+        main = dense3
         out_moves = layers.Dense(4096, activation=activ_out, name="moves")(main)
         out_eval = layers.Dense(2, activation=activ_out, name="eval")(main)
 

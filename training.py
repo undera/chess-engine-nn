@@ -18,7 +18,7 @@ def play_one_game(pwhite, pblack, rnd):
     :type pblack: Player
     :type rnd: int
     """
-    board = BoardOptim.from_chess960_pos(rnd % 960)
+    board: BoardOptim = BoardOptim.from_chess960_pos(rnd % 960)
     pwhite.board = board
     pblack.board = board
 

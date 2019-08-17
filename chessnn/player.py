@@ -19,7 +19,6 @@ class Player(object):
         self.color = color
         # noinspection PyTypeChecker
         self.board = None
-        self.start_from = (0, 0)
         self.nn = net
         self.moves_log = []
 
@@ -40,7 +39,7 @@ class Player(object):
     def _log_move(self, pos, move, geval, in_round):
         if move != chess.Move.null():
             piece = self.board.piece_at(move.from_square)
-            log_rec = self._get_moverec(pos, move, geval)
+            log_rec = self._get_moverec(pos, move)
             log_rec.piece = piece.piece_type
             log_rec.from_round = in_round
 
@@ -48,17 +47,14 @@ class Player(object):
             self.board.comment_stack.append(log_rec)
 
     def _choose_best_move(self, pos):
-        moverec = self._get_moverec(pos, chess.Move.null(), 0.0)
+        moverec = self._get_moverec(pos, chess.Move.null())
         scores4096, geval = self.nn.inference([moverec])
         move = self._scores_to_move(scores4096)
         return move, geval[0]
 
-    def _get_moverec(self, pos, move, evl):
+    def _get_moverec(self, pos, move):
         fifty = self.board.halfmove_clock / 100.0
-        repetition = False#float(self.board.is_repetition(2))
-        moverec = MoveRecord(pos, move, repetition, fifty)
-        moverec.forced_eval = evl if not repetition else 0.0
-        moverec.forced_eval = evl if not repetition else 0.0
+        moverec = MoveRecord(pos, move, fifty)
         return moverec
 
     def _scores_to_move(self, scores_restored):

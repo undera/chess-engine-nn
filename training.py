@@ -1,9 +1,11 @@
 import logging
 import os
 import pickle
+import random
 import sys
 from typing import Set
 
+import playsound as playsound
 from chess import WHITE, BLACK, Move
 
 from chessnn import BoardOptim, MoveRecord, is_debug
@@ -115,36 +117,36 @@ def play_with_score(pwhite, pblack):
         bmoves = pblack.get_moves()
 
         if result == '1-0':
+            playsound.playsound('/usr/share/games/xboard/sounds/ding.wav')
             for x, move in enumerate(wmoves):
-                move.forced_eval = 1.0
+                move.eval = 1.0
             for x, move in enumerate(bmoves):
-                move.forced_eval = 0.0
+                move.eval = 0.0
             winning.update(wmoves)
             losing.update(bmoves)
-            nn.train(winning.dataset | losing.dataset, 1)
         elif result == '0-1':
+            # playsound.playsound('/usr/share/games/xboard/sounds/pop2.wav')
             for x, move in enumerate(bmoves):
-                move.forced_eval = 1.0
+                move.eval = 1.0
             for x, move in enumerate(wmoves):
-                move.forced_eval = 0.0
+                move.eval = 0.0
             winning.update(bmoves)
             losing.update(wmoves)
-            nn.train(winning.dataset | losing.dataset, 1)
         else:
             for x, move in enumerate(bmoves):
-                move.forced_eval = 0.5
+                move.eval = 0.5
             for x, move in enumerate(wmoves):
-                move.forced_eval = 0.5
+                move.eval = 0.5
             draw.update(wmoves)
             draw.update(bmoves)
 
         rnd += 1
         if not (rnd % 96):
             # if had_decisive:
-            winning.dataset -= losing.dataset
-            winning.dataset -= draw
-            losing.dataset -= winning.dataset
-            losing.dataset -= draw
+            # winning.dataset -= losing.dataset
+            # winning.dataset -= draw
+            # losing.dataset -= winning.dataset
+            # losing.dataset -= draw
 
             logging.info("W: %s\tL: %s\tD: %s", len(winning.dataset), len(losing.dataset), len(draw))
 
@@ -159,7 +161,9 @@ def play_with_score(pwhite, pblack):
             # dataset.update(lst[:max(len(dataset), 1)])
             # dataset.update(lst[:max(10 * non_decisive_cnt + 1, len(dataset) // 2000)])
 
-            nn.train(dataset, 20)
+            lst = list(dataset)
+            random.shuffle(lst)
+            nn.train(lst, 20)
             nn.save("nn.hdf5")
 
             draw = set()
@@ -215,8 +219,8 @@ if __name__ == "__main__":
 
     nn = NNChess("nn.hdf5")
     white = Player("Lisa", WHITE, nn)
-    black = Player("Karen", BLACK, nn)
-    # black = Stockfish(BLACK)
+    #black = Player("Karen", BLACK, nn)
+    black = Stockfish(BLACK)
 
     try:
         # play_per_turn(white, black)

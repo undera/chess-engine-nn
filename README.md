@@ -161,8 +161,10 @@ Fixing that seems helped learning a ton. Shame on me for overlooking this since 
 
 I also made integration with UCI and now my NN plays versus Stockfish. Loses 100% of games, of course. Let it play with SF overnight...
 
-... it played 5000 games and dozens of re-trainings, but did not improve. I'll need to experiment more, but I see important bug fixed.
+... it played 5000 games and dozens of re-trainings, but did not improve. I'll need to experiment more, still I see one important bug fixed.
 
 ### 17 Aug 2019
 
 I have interesting thought. Chess board position is effectively an image. 8x8 pixels with 12 channels. So can we apply convolutional NN to analyze this image?
+
+I've build a NN structure that uses convolutional layers with additional route of data fed into dense layers, and now experimenting with hyperparams and training.

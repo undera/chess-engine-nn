@@ -1,6 +1,7 @@
 import logging
 import os
 import time
+import warnings
 from abc import abstractmethod
 
 # from https://github.com/tensorflow/tensorflow/issues/26691
@@ -14,7 +15,10 @@ from chessnn import MoveRecord
 # noinspection PyProtectedMember
 logging.root.removeHandler(absl.logging._absl_handler)
 
-from tensorflow.python.keras import models, layers, utils, callbacks, regularizers
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
+with warnings.catch_warnings():
+    warnings.filterwarnings("ignore", category=FutureWarning)
+    from tensorflow.python.keras import models, layers, utils, callbacks, regularizers
 
 
 class NN(object):
@@ -41,7 +45,7 @@ class NN(object):
     def inference(self, data):
         inputs, outputs = self._data_to_training_set(data, True)
         res = self._model.predict_on_batch(inputs)
-        return [x[0] for x in res]
+        return [x for x in res]
 
     def train(self, data, epochs, validation_data=None):
         logging.info("Preparing training set...")
@@ -79,35 +83,39 @@ class NN(object):
 
 class NNChess(NN):
     def _get_nn(self):
-        reg = regularizers.l2(0.001)
+        reg = regularizers.l2(0.005)
         activ_hidden = "relu"  # linear relu elu sigmoid tanh softmax
         activ_out = "softmax"  # linear relu elu sigmoid tanh softmax
-        optimizer = "rmsprop"  # sgd rmsprop adagrad adadelta adamax adam nadam
+        optimizer = "nadam"  # sgd rmsprop adagrad adadelta adamax adam nadam
 
         pos_shape = (8, 8, len(PIECE_TYPES) * 2)
         position = layers.Input(shape=pos_shape, name="position")
-        flags = layers.Input(shape=(1,), name="flags")
+        # flags = layers.Input(shape=(1,), name="flags")
 
-        conv1 = layers.Conv2D(32, kernel_size=(3, 3), activation=activ_hidden, kernel_regularizer=reg)(position)
-        main1 = layers.concatenate([layers.Flatten()(conv1), flags])
-        main1 = layers.Dropout(0.1)(main1)
-        dense1 = layers.Dense(8, activation=activ_hidden, kernel_regularizer=reg)(main1)
+        conv1 = layers.Conv2D(16, kernel_size=(3, 3), activation=activ_hidden, kernel_regularizer=reg)(position)
+        main1 = layers.concatenate([layers.Flatten()(conv1), layers.Flatten()(position)])
+        main1 = layers.Dropout(0.25)(main1)
+        dense1 = layers.Dense(32, activation=activ_hidden, kernel_regularizer=reg)(main1)
 
-        conv2 = layers.Conv2D(16, kernel_size=(3, 3), activation=activ_hidden, kernel_regularizer=reg)(conv1)
+        conv2 = layers.Conv2D(32, kernel_size=(3, 3), activation=activ_hidden, kernel_regularizer=reg)(conv1)
         main2 = layers.concatenate([layers.Flatten()(conv2), dense1])
-        # main2 = layers.Dropout(0.1)(main2)
-        dense2 = layers.Dense(16, activation=activ_hidden, kernel_regularizer=reg)(main2)
+        main2 = layers.Dropout(0.1)(main2)
+        dense2 = layers.Dense(64, activation=activ_hidden, kernel_regularizer=reg)(main2)
 
-        conv3 = layers.Conv2D(8, kernel_size=(3, 3), activation=activ_hidden, kernel_regularizer=reg)(conv2)
+        conv3 = layers.Conv2D(64, kernel_size=(3, 3), activation=activ_hidden, kernel_regularizer=reg)(conv2)
         main3 = layers.concatenate([layers.Flatten()(conv3), dense2])
         # main3 = layers.Dropout(0.1)(main3)
-        dense3 = layers.Dense(32, activation=activ_hidden, kernel_regularizer=reg)(main3)
+
+        main3 = layers.Flatten()(main3)
+
+        # main3 = layers.concatenate([main3, flags])
+        dense3 = layers.Dense(64, activation=activ_hidden, kernel_regularizer=reg)(main3)
 
         main = dense3
         out_moves = layers.Dense(4096, activation=activ_out, name="moves")(main)
-        out_eval = layers.Dense(2, activation=activ_out, name="eval")(main)
+        # out_eval = layers.Dense(2, activation=activ_out, name="eval")(main)
 
-        model = models.Model(inputs=[position, flags], outputs=[out_moves, out_eval])
+        model = models.Model(inputs=[position], outputs=[out_moves])  # , flags # , out_eval
         model.compile(optimizer=optimizer,
                       loss="categorical_crossentropy",
                       # loss_weights=[1.0, 0.1],
@@ -138,4 +146,4 @@ class NNChess(NN):
 
             batch_n += 1
 
-        return [inputs_pos, inputs_flags], [out_moves, evals]
+        return [inputs_pos], [out_moves]  # , inputs_flags #  , evals

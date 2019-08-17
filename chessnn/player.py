@@ -44,7 +44,8 @@ class Player(object):
         pos = self.board.get_position() if self.color == chess.WHITE else self.board.mirror().get_position()
 
         moverec = self._get_moverec(pos, chess.Move.null())
-        scores4096, geval = self.nn.inference([moverec])
+        scores4096, = self.nn.inference([moverec])  # , geval
+        geval = [0]
         move = self._scores_to_move(scores4096)
         moverec.from_square = move.from_square
         moverec.to_square = move.to_square
@@ -107,7 +108,7 @@ class Stockfish(Player):
         self.engine = SimpleEngine.popen_uci("stockfish")
 
     def makes_move(self, in_round):
-        result = self.engine.play(self.board, chess.engine.Limit(time=0.100), info=INFO_SCORE)
+        result = self.engine.play(self.board, chess.engine.Limit(time=0.0100), info=INFO_SCORE)
         logging.debug("SF move: %s, %s, %s", result.move, result.draw_offered, result.info)
 
         pos = self.board.get_position() if self.color == chess.WHITE else self.board.mirror().get_position()

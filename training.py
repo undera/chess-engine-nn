@@ -4,7 +4,7 @@ import pickle
 import sys
 from typing import Set
 
-from chess import WHITE, BLACK
+from chess import WHITE, BLACK, Move
 
 from chessnn import BoardOptim, MoveRecord, is_debug
 from chessnn.nn import NNChess
@@ -32,7 +32,7 @@ def play_one_game(pwhite, pblack, rnd):
             if is_debug():
                 board.write_pgn(pwhite, pblack, os.path.join(os.path.dirname(__file__), "last.pgn"), rnd)
     except:
-        last = board.move_stack[-1]
+        last = board.move_stack[-1] if board.move_stack else Move.null()
         logging.warning("Final move: %s %s %s", last, last.from_square, last.to_square)
         logging.warning("Final position:\n%s", board.unicode())
         raise
@@ -139,7 +139,7 @@ def play_with_score(pwhite, pblack):
             draw.update(bmoves)
 
         rnd += 1
-        if not (rnd % 96):
+        if not (rnd % 1):
             # if had_decisive:
             winning.dataset -= losing.dataset
             winning.dataset -= draw

@@ -84,34 +84,19 @@ class NNChess(NN):
         activ_out = "softmax"  # linear relu elu sigmoid tanh softmax
         optimizer = "rmsprop"  # sgd rmsprop adagrad adadelta adamax adam nadam
 
-        position = layers.Input(shape=(2, 8, 8, len(PIECE_TYPES)), name="position")
+        pos_shape = (8, 8, len(PIECE_TYPES) * 2)
+        position = layers.Input(shape=pos_shape, name="position")
+        conv = layers.Conv2D(32, kernel_size=(3, 3), activation=activ_hidden)(position)
+        conv = layers.Conv2D(32, kernel_size=(3, 3), activation=activ_hidden)(position)
+        #conv = layers.Conv2D(64, kernel_size=(5, 5), activation=activ_hidden)(conv)
+        #conv = layers.MaxPooling2D()(conv)
+        conv = layers.Flatten()(conv)
+
         flags = layers.Input(shape=(2,), name="flags")
-        main = layers.concatenate([layers.Flatten()(position), flags])
-
-        branch = main
-        """
-        def _residual(inp, size):
-            # out = layers.Dropout(rate=0.05)(inp)
-            inp = layers.Dense(size, activation=activ_hidden, kernel_regularizer=reg)(inp)
-            out = layers.Dense(size, activation=activ_hidden, kernel_regularizer=reg)(inp)
-            out = layers.merge.multiply([inp, out])
-            # out = layers.Dense(size, activation=activ_hidden, kernel_regularizer=reg)(out)
-            return out
-
-        for _ in range(2, 1, -1):
-            branch = _residual(branch, 64 * 8)
-
-        main = layers.concatenate([main, branch])
-
-        for _ in range(2, 1, -1):
-            main = _residual(main, 64 * 8)
-        """
-        main = layers.Dense(512, activation=activ_hidden, kernel_regularizer=reg)(main)
-        main = layers.Dropout(0.1)(main)
-        main = layers.Dense(256, activation=activ_hidden, kernel_regularizer=reg)(main)
-
+        main = layers.concatenate([conv, flags])
+        main = layers.Dense(64)(main)
         out_moves = layers.Dense(4096, activation=activ_out, name="moves")(main)
-        out_eval = layers.Dense(2, activation=activ_out, name="eval")(branch)
+        out_eval = layers.Dense(2, activation=activ_out, name="eval")(main)
 
         model = models.Model(inputs=[position, flags], outputs=[out_moves, out_eval])
         model.compile(optimizer=optimizer,
@@ -123,7 +108,7 @@ class NNChess(NN):
     def _data_to_training_set(self, data, is_inference=False):
         batch_len = len(data)
 
-        inputs_pos = np.full((batch_len, 2, 8, 8, len(PIECE_TYPES)), 0.0)
+        inputs_pos = np.full((batch_len, 8, 8, len(PIECE_TYPES) * 2), 0.0)
         inputs_flags = np.full((batch_len, 2), 0.0)
         out_moves = np.full((batch_len, 4096), 0.0)
         evals = np.full((batch_len, 2), 0.0)

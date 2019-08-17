@@ -153,14 +153,18 @@ class BoardOptim(chess.Board):
         return super().pop()
 
     def get_position(self):
-        pos = np.full((2, 8, 8, len(chess.PIECE_TYPES)), 0)
+        pos = np.full((8, 8, len(chess.PIECE_TYPES) * 2), 0)
         for square in chess.SQUARES:
             piece = self.piece_at(square)
 
             if not piece:
                 continue
 
-            pos[int(piece.color)][square_file(square)][square_rank(square)][piece.piece_type - 1] = 1
+            int(piece.color)
+            channel = piece.piece_type - 1
+            if piece.color:
+                channel += len(PIECE_VALUES)
+            pos[square_file(square)][square_rank(square)][channel] = 1
 
         pos.flags.writeable = False
 

@@ -55,7 +55,7 @@ class Player(object):
 
     def _get_moverec(self, pos, move, evl):
         fifty = self.board.halfmove_clock / 100.0
-        repetition = float(self.board.is_repetition(2))
+        repetition = False#float(self.board.is_repetition(2))
         moverec = MoveRecord(pos, move, repetition, fifty)
         moverec.forced_eval = evl if not repetition else 0.0
         moverec.forced_eval = evl if not repetition else 0.0

@@ -103,7 +103,7 @@ def play_with_score(pwhite, pblack):
     losing.load_moves()
     draw: Set[MoveRecord] = set()
 
-    if not is_debug():
+    if not is_debug() and winning.dataset:
         nn.train(winning.dataset | losing.dataset, 20);return
         pass
 
@@ -139,7 +139,7 @@ def play_with_score(pwhite, pblack):
             draw.update(bmoves)
 
         rnd += 1
-        if not (rnd % 1):
+        if not (rnd % 96):
             # if had_decisive:
             winning.dataset -= losing.dataset
             winning.dataset -= draw

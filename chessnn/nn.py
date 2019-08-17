@@ -9,9 +9,9 @@ import absl.logging
 import numpy as np
 from chess import PIECE_TYPES
 
-# noinspection PyProtectedMember
 from chessnn import MoveRecord
 
+# noinspection PyProtectedMember
 logging.root.removeHandler(absl.logging._absl_handler)
 
 from tensorflow.python.keras import models, layers, utils, callbacks, regularizers
@@ -86,10 +86,10 @@ class NNChess(NN):
 
         pos_shape = (8, 8, len(PIECE_TYPES) * 2)
         position = layers.Input(shape=pos_shape, name="position")
-        conv = layers.Conv2D(32, kernel_size=(3, 3), activation=activ_hidden)(position)
-        conv = layers.Conv2D(32, kernel_size=(3, 3), activation=activ_hidden)(position)
-        #conv = layers.Conv2D(64, kernel_size=(5, 5), activation=activ_hidden)(conv)
-        #conv = layers.MaxPooling2D()(conv)
+        conv = position
+        conv = layers.Conv2D(32, kernel_size=(3, 3), activation=activ_hidden)(conv)
+        conv = layers.Conv2D(16, kernel_size=(3, 3), activation=activ_hidden)(conv)
+        conv = layers.Conv2D(8, kernel_size=(3, 3), activation=activ_hidden)(conv)
         conv = layers.Flatten()(conv)
 
         flags = layers.Input(shape=(2,), name="flags")

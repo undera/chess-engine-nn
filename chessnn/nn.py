@@ -50,7 +50,7 @@ class NN(object):
         logging.info("Starting to learn...")
         cbs = [callbacks.TensorBoard('/tmp/tensorboard/%d' % time.time())] if epochs > 1 else []
         res = self._model.fit(inputs, outputs,  # sample_weight=np.array(sample_weights),
-                              validation_split=0.1 if validation_data is None else 0.0, shuffle=True,
+                              validation_split=0.1 if (validation_data is None and epochs > 1) else 0.0, shuffle=True,
                               callbacks=cbs, verbose=2 if epochs > 1 else 0,
                               epochs=epochs, )
         logging.info("Trained: %s", {x: y[-1] for x, y in res.history.items()})
@@ -88,20 +88,20 @@ class NNChess(NN):
         position = layers.Input(shape=pos_shape, name="position")
         flags = layers.Input(shape=(1,), name="flags")
 
-        conv1 = layers.Conv2D(32, kernel_size=(3, 3), activation=activ_hidden)(position)
+        conv1 = layers.Conv2D(32, kernel_size=(3, 3), activation=activ_hidden, kernel_regularizer=reg)(position)
         main1 = layers.concatenate([layers.Flatten()(conv1), flags])
-        # main1 = layers.Dropout(0.1)(main1)
-        dense1 = layers.Dense(8, activation=activ_hidden)(main1)
+        main1 = layers.Dropout(0.1)(main1)
+        dense1 = layers.Dense(8, activation=activ_hidden, kernel_regularizer=reg)(main1)
 
-        conv2 = layers.Conv2D(16, kernel_size=(3, 3), activation=activ_hidden)(conv1)
+        conv2 = layers.Conv2D(16, kernel_size=(3, 3), activation=activ_hidden, kernel_regularizer=reg)(conv1)
         main2 = layers.concatenate([layers.Flatten()(conv2), dense1])
         # main2 = layers.Dropout(0.1)(main2)
-        dense2 = layers.Dense(16, activation=activ_hidden)(main2)
+        dense2 = layers.Dense(16, activation=activ_hidden, kernel_regularizer=reg)(main2)
 
-        conv3 = layers.Conv2D(8, kernel_size=(3, 3), activation=activ_hidden)(conv2)
+        conv3 = layers.Conv2D(8, kernel_size=(3, 3), activation=activ_hidden, kernel_regularizer=reg)(conv2)
         main3 = layers.concatenate([layers.Flatten()(conv3), dense2])
         # main3 = layers.Dropout(0.1)(main3)
-        dense3 = layers.Dense(32, activation=activ_hidden)(main3)
+        dense3 = layers.Dense(32, activation=activ_hidden, kernel_regularizer=reg)(main3)
 
         main = dense3
         out_moves = layers.Dense(4096, activation=activ_out, name="moves")(main)
@@ -110,7 +110,7 @@ class NNChess(NN):
         model = models.Model(inputs=[position, flags], outputs=[out_moves, out_eval])
         model.compile(optimizer=optimizer,
                       loss="categorical_crossentropy",
-                      loss_weights=[1.0, 0.5],
+                      # loss_weights=[1.0, 0.1],
                       metrics=['categorical_accuracy'])
         return model
 

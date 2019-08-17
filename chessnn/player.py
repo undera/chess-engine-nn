@@ -23,10 +23,8 @@ class Player(object):
         self.moves_log = []
 
     def makes_move(self, in_round):
-        pos = self.board.get_position() if self.color == chess.WHITE else self.board.mirror().get_position()
-
         moverec: MoveRecord
-        moverec, move, geval = self._choose_best_move(pos)
+        moverec, move, geval = self._choose_best_move()
 
         self._log_move(moverec, move)
 
@@ -42,12 +40,15 @@ class Player(object):
             self.moves_log.append(moverec)
             self.board.comment_stack.append(moverec)
 
-    def _choose_best_move(self, pos):
+    def _choose_best_move(self):
+        pos = self.board.get_position() if self.color == chess.WHITE else self.board.mirror().get_position()
+
         moverec = self._get_moverec(pos, chess.Move.null())
         scores4096, geval = self.nn.inference([moverec])
         move = self._scores_to_move(scores4096)
         moverec.from_square = move.from_square
         moverec.to_square = move.to_square
+        moverec.forced_eval = geval[0]
         return moverec, move, geval[0]
 
     def _get_moverec(self, pos, move):
@@ -64,7 +65,6 @@ class Player(object):
                 move = flipped
 
             if not self.board.is_legal(move):
-                # logging.debug("Invalid move suggested: %s", move)
                 cnt += 1
                 continue
 

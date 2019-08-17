@@ -104,7 +104,7 @@ def play_with_score(pwhite, pblack):
     draw: Set[MoveRecord] = set()
 
     if not is_debug() and winning.dataset:
-        nn.train(winning.dataset | losing.dataset, 20);return
+        nn.train(winning.dataset | losing.dataset, 20);  # return
         pass
 
     rnd = max([x.from_round for x in winning.dataset | losing.dataset]) if winning.dataset else 0
@@ -121,7 +121,7 @@ def play_with_score(pwhite, pblack):
                 move.forced_eval = 0.0
             winning.update(wmoves)
             losing.update(bmoves)
-            # nn.train(winning.dataset | losing.dataset, 1)
+            nn.train(winning.dataset | losing.dataset, 1)
         elif result == '0-1':
             for x, move in enumerate(bmoves):
                 move.forced_eval = 1.0
@@ -129,7 +129,7 @@ def play_with_score(pwhite, pblack):
                 move.forced_eval = 0.0
             winning.update(bmoves)
             losing.update(wmoves)
-            # nn.train(winning.dataset | losing.dataset, 1)
+            nn.train(winning.dataset | losing.dataset, 1)
         else:
             for x, move in enumerate(bmoves):
                 move.forced_eval = 0.5
@@ -215,13 +215,12 @@ if __name__ == "__main__":
 
     nn = NNChess("nn.hdf5")
     white = Player("Lisa", WHITE, nn)
-    # black = Player("Karen", BLACK, nn)
-
-    black = Stockfish(BLACK)
+    black = Player("Karen", BLACK, nn)
+    # black = Stockfish(BLACK)
 
     try:
         # play_per_turn(white, black)
         play_with_score(white, black)
     finally:
-        if black.name == 'Stockfish':
+        if isinstance(black, Stockfish):
             black.engine.quit()

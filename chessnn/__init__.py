@@ -272,6 +272,9 @@ class MoveRecord(object):
         return 0.0
 
     def get_move_num(self):
+        if self.from_square == self.to_square:
+            return 0  # null move
+
         return 64 * self.from_square + self.to_square
 
 

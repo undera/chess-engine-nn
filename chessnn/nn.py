@@ -86,7 +86,7 @@ class NNChess(NN):
 
         pos_shape = (8, 8, len(PIECE_TYPES) * 2)
         position = layers.Input(shape=pos_shape, name="position")
-        flags = layers.Input(shape=(2,), name="flags")
+        flags = layers.Input(shape=(1,), name="flags")
 
         conv1 = layers.Conv2D(32, kernel_size=(3, 3), activation=activ_hidden)(position)
         main1 = layers.concatenate([layers.Flatten()(conv1), flags])
@@ -118,7 +118,7 @@ class NNChess(NN):
         batch_len = len(data)
 
         inputs_pos = np.full((batch_len, 8, 8, len(PIECE_TYPES) * 2), 0.0)
-        inputs_flags = np.full((batch_len, 2), 0.0)
+        inputs_flags = np.full((batch_len, 1), 0.0)
         out_moves = np.full((batch_len, 4096), 0.0)
         evals = np.full((batch_len, 2), 0.0)
 
@@ -128,12 +128,11 @@ class NNChess(NN):
 
             pos, evl, move = move_rec.position, move_rec.forced_eval, move_rec.get_move_num()
 
-            evals[batch_n][0] = evl
-            evals[batch_n][1] = 1.0 - evl
+            evals[batch_n][0] = evl if evl is not None else 0.5
+            evals[batch_n][1] = 1.0 - evals[batch_n][0]
             inputs_pos[batch_n] = pos
 
-            inputs_flags[batch_n][0] = move_rec.is_repeat
-            inputs_flags[batch_n][1] = move_rec.fifty_progress
+            inputs_flags[batch_n][0] = move_rec.fifty_progress
 
             out_moves[batch_n][move] = 1.0
 

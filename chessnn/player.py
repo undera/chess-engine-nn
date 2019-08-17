@@ -25,9 +25,10 @@ class Player(object):
     def makes_move(self, in_round):
         pos = self.board.get_position() if self.color == chess.WHITE else self.board.mirror().get_position()
 
-        move, geval = self._choose_best_move(pos)
+        moverec: MoveRecord
+        moverec, move, geval = self._choose_best_move(pos)
 
-        self._log_move(pos, move, geval, in_round)
+        self._log_move(moverec, move)
 
         self.board.push(move)
 
@@ -36,21 +37,18 @@ class Player(object):
         not_over = move != chess.Move.null() and not self.board.is_game_over(claim_draw=False)
         return not_over
 
-    def _log_move(self, pos, move, geval, in_round):
+    def _log_move(self, moverec, move):
         if move != chess.Move.null():
-            piece = self.board.piece_at(move.from_square)
-            log_rec = self._get_moverec(pos, move)
-            log_rec.piece = piece.piece_type
-            log_rec.from_round = in_round
-
-            self.moves_log.append(log_rec)
-            self.board.comment_stack.append(log_rec)
+            self.moves_log.append(moverec)
+            self.board.comment_stack.append(moverec)
 
     def _choose_best_move(self, pos):
         moverec = self._get_moverec(pos, chess.Move.null())
         scores4096, geval = self.nn.inference([moverec])
         move = self._scores_to_move(scores4096)
-        return move, geval[0]
+        moverec.from_square = move.from_square
+        moverec.to_square = move.to_square
+        return moverec, move, geval[0]
 
     def _get_moverec(self, pos, move):
         fifty = self.board.halfmove_clock / 100.0
@@ -113,7 +111,8 @@ class Stockfish(Player):
         logging.debug("SF move: %s, %s, %s", result.move, result.draw_offered, result.info)
 
         pos = self.board.get_position() if self.color == chess.WHITE else self.board.mirror().get_position()
-        self._log_move(pos, result.move, result.info['score'].relative.score(), in_round)
+
+        self._log_move(MoveRecord(pos, result.move, self.board.halfmove_clock / 100.0), result.move, )
 
         self.board.push(result.move)
 

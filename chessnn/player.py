@@ -25,6 +25,7 @@ class Player(object):
     def makes_move(self, in_round):
         moverec: MoveRecord
         moverec, move, geval = self._choose_best_move()
+        moverec.from_round = in_round
 
         self._log_move(moverec, move)
 
@@ -43,7 +44,7 @@ class Player(object):
     def _choose_best_move(self):
         pos = self.board.get_position() if self.color == chess.WHITE else self.board.mirror().get_position()
 
-        moverec = self._get_moverec(pos, chess.Move.null())
+        moverec = MoveRecord(pos, chess.Move.null(), self.board.halfmove_clock / 100.0)
         scores4096, = self.nn.inference([moverec])  # , geval
         geval = [0]
         move = self._scores_to_move(scores4096)
@@ -51,11 +52,6 @@ class Player(object):
         moverec.to_square = move.to_square
         moverec.forced_eval = geval[0]
         return moverec, move, geval[0]
-
-    def _get_moverec(self, pos, move):
-        fifty = self.board.halfmove_clock / 100.0
-        moverec = MoveRecord(pos, move, fifty)
-        return moverec
 
     def _scores_to_move(self, scores_restored):
         cnt = 0
@@ -113,7 +109,15 @@ class Stockfish(Player):
 
         pos = self.board.get_position() if self.color == chess.WHITE else self.board.mirror().get_position()
 
-        self._log_move(MoveRecord(pos, result.move, self.board.halfmove_clock / 100.0), result.move, )
+        record = MoveRecord(pos, result.move, self.board.halfmove_clock / 100.0)
+        if result.info['score'].is_mate():
+            record.forced_eval = 1
+        elif not result.info['score'].relative.cp:
+            record.forced_eval = 0
+        else:
+            record.forced_eval = -1 / abs(result.info['score'].relative.cp) + 1
+
+        self._log_move(record, result.move, )
 
         self.board.push(result.move)
 

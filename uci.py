@@ -17,7 +17,7 @@ if __name__ == "__main__":
     try:
         board = BoardOptim.from_chess960_pos(random.randint(0, 959))
         nn = NNChess("nn.hdf5")
-        white = Player(WHITE, nn)
+        white = Player("Lisa", WHITE, nn)
         white.board = board
 
         while not board.is_game_over():

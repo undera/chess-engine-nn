@@ -52,7 +52,8 @@ class NN(object):
         inputs, outputs = self._data_to_training_set(data, False)
 
         logging.info("Starting to learn...")
-        cbs = [callbacks.TensorBoard('/tmp/tensorboard/%d' % time.time())] if epochs > 1 else []
+        cbpath = '/tmp/tensorboard/%d' % (time.time() if epochs > 1 else 0)
+        cbs = [callbacks.TensorBoard(cbpath)]
         res = self._model.fit(inputs, outputs,  # sample_weight=np.array(sample_weights),
                               validation_split=0.1 if (validation_data is None and epochs > 1) else 0.0, shuffle=True,
                               callbacks=cbs, verbose=2 if epochs > 1 else 0,
@@ -103,15 +104,16 @@ class NNChess(NN):
         dense2 = layers.Dense(64, activation=activ_hidden, kernel_regularizer=reg)(main2)
 
         conv3 = layers.Conv2D(64, kernel_size=(3, 3), activation=activ_hidden, kernel_regularizer=reg)(conv2)
-        main3 = layers.concatenate([layers.Flatten()(conv3), dense2])
+        pool1 = layers.MaxPool2D()(conv3)
+        main3 = layers.concatenate([layers.Flatten()(pool1), dense2])
         # main3 = layers.Dropout(0.1)(main3)
 
         main3 = layers.Flatten()(main3)
 
         # main3 = layers.concatenate([main3, flags])
-        dense3 = layers.Dense(64, activation=activ_hidden, kernel_regularizer=reg)(main3)
+        # dense3 = layers.Dense(64, activation=activ_hidden, kernel_regularizer=reg)(main3)
 
-        main = dense3
+        main = main3
         out_moves = layers.Dense(4096, activation=activ_out, name="moves")(main)
         # out_eval = layers.Dense(2, activation=activ_out, name="eval")(main)
 

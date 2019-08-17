@@ -5,7 +5,6 @@ import random
 import sys
 from typing import Set
 
-import playsound as playsound
 from chess import WHITE, BLACK, Move
 
 from chessnn import BoardOptim, MoveRecord, is_debug
@@ -106,7 +105,7 @@ def play_with_score(pwhite, pblack):
     draw: Set[MoveRecord] = set()
 
     if not is_debug() and winning.dataset:
-        nn.train(winning.dataset | losing.dataset, 20);  # return
+        # nn.train(winning.dataset | losing.dataset, 20);  # return
         pass
 
     rnd = max([x.from_round for x in winning.dataset | losing.dataset]) if winning.dataset else 0
@@ -117,7 +116,7 @@ def play_with_score(pwhite, pblack):
         bmoves = pblack.get_moves()
 
         if result == '1-0':
-            playsound.playsound('/usr/share/games/xboard/sounds/ding.wav')
+            # playsound.playsound('/usr/share/games/xboard/sounds/ding.wav')
             for x, move in enumerate(wmoves):
                 move.eval = 1.0
             for x, move in enumerate(bmoves):
@@ -125,7 +124,6 @@ def play_with_score(pwhite, pblack):
             winning.update(wmoves)
             losing.update(bmoves)
         elif result == '0-1':
-            # playsound.playsound('/usr/share/games/xboard/sounds/pop2.wav')
             for x, move in enumerate(bmoves):
                 move.eval = 1.0
             for x, move in enumerate(wmoves):
@@ -139,6 +137,8 @@ def play_with_score(pwhite, pblack):
                 move.eval = 0.5
             draw.update(wmoves)
             draw.update(bmoves)
+
+        nn.train(wmoves + bmoves, 1)
 
         rnd += 1
         if not (rnd % 96):
@@ -154,60 +154,13 @@ def play_with_score(pwhite, pblack):
             losing.dump_moves()
             dataset = winning.dataset | losing.dataset
 
-            # lst = list(draw)
-            # for x in lst:
-            #    x.forced_eval = 0.5 if not x.ignore else 0  # random.random()
-            # random.shuffle(lst)
-            # dataset.update(lst[:max(len(dataset), 1)])
-            # dataset.update(lst[:max(10 * non_decisive_cnt + 1, len(dataset) // 2000)])
-
             lst = list(dataset)
             random.shuffle(lst)
-            nn.train(lst, 20)
+            # nn.train(lst, 20)
             nn.save("nn.hdf5")
 
             draw = set()
 
-
-def play_per_turn(pwhite, pblack):
-    dataset = DataSet("moves.pkl")
-    dataset.load_moves()
-    if not is_debug() and dataset.dataset:
-        # pwhite.nn.train(dataset.dataset, 20)
-        # nn.save("nn.hdf5")
-        pass
-
-    rnd = max([x.from_round for x in dataset.dataset]) if dataset.dataset else 0
-    while True:
-        result = play_one_game(pwhite, pblack, rnd)
-        wmoves = pwhite.get_moves()
-        bmoves = pblack.get_moves()
-
-        if result == '1-0':
-            for x, move in enumerate(wmoves):
-                move.forced_eval = 0.5 + 0.5 * float(x) / len(wmoves)
-            for x, move in enumerate(bmoves):
-                move.forced_eval = 0.5 - 0.5 * float(x) / len(wmoves)
-        elif result == '0-1':
-            for x, move in enumerate(bmoves):
-                move.forced_eval = 0.5 + 0.5 * float(x) / len(wmoves)
-            for x, move in enumerate(wmoves):
-                move.forced_eval = 0.5 - 0.5 * float(x) / len(wmoves)
-        else:
-            for x, move in enumerate(bmoves):
-                move.forced_eval = 0.0
-            for x, move in enumerate(wmoves):
-                move.forced_eval = 0.0
-
-        moves = wmoves + bmoves
-        dataset.update(moves)
-
-        rnd += 1
-        if not (rnd % 960) or not (rnd % 96):
-            dataset.dump_moves()
-
-            nn.train(dataset.dataset, 10)
-            nn.save("nn.hdf5")
 
 
 if __name__ == "__main__":
@@ -219,11 +172,10 @@ if __name__ == "__main__":
 
     nn = NNChess("nn.hdf5")
     white = Player("Lisa", WHITE, nn)
-    #black = Player("Karen", BLACK, nn)
+    black = Player("Karen", BLACK, nn)
     black = Stockfish(BLACK)
 
     try:
-        # play_per_turn(white, black)
         play_with_score(white, black)
     finally:
         if isinstance(black, Stockfish):

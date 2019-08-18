@@ -168,3 +168,9 @@ I also made integration with UCI and now my NN plays versus Stockfish. Loses 100
 I have interesting thought. Chess board position is effectively an image. 8x8 pixels with 12 channels. So can we apply convolutional NN to analyze this image?
 
 I've build a NN structure that uses convolutional layers with additional route of data fed into dense layers, and now experimenting with hyperparams and training.
+
+... it played tens of thousands of games vs SF in "retrain with last game" mode, reached only 0.47 accuracy. But I already know there is one more problem with training data, black moves were not flipped properly. Figured it out in my head just before going to sleep. 
+
+### 18 Aug 2019
+
+I fixed that issue with move flipping, will see how it affects the model.

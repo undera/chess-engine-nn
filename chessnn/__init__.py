@@ -225,7 +225,7 @@ class BoardOptim(chess.Board):
 class MoveRecord(object):
     piece: chess.Piece
 
-    def __init__(self, position, move, fifty_progress, piece=None) -> None:
+    def __init__(self, position, move, fifty_progress, piece) -> None:
         super().__init__()
         self.fifty_progress = fifty_progress
         self.forced_eval = None

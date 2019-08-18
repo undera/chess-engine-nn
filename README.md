@@ -174,3 +174,9 @@ I've build a NN structure that uses convolutional layers with additional route o
 ### 18 Aug 2019
 
 I fixed that issue with move flipping, will see how it affects the model. Looks like learning rate has improved a bit.
+
+After some training, I see that NN does not give good moves vs SF. Will train it more.
+
+After some more training, it has approached a bit over 0.5 accuracy, probably for the first time from all my attempts. It's all less about NN structure, it's mostly about stupid bugs in complicated code.
+
+Still after massive training done, accuracy is barely above 0.5. Will need to experiment with NN structure now, I guess.

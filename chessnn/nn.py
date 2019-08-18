@@ -57,7 +57,7 @@ class NN(object):
         res = self._model.fit(inputs, outputs,  # sample_weight=np.array(sample_weights),
                               validation_split=0.1 if (validation_data is None and epochs > 1) else 0.0, shuffle=True,
                               callbacks=cbs, verbose=2 if epochs > 1 else 0,
-                              epochs=epochs, )
+                              epochs=epochs, batch_size=32)
         logging.info("Trained: %s", {x: y[-1] for x, y in res.history.items()})
 
         if validation_data is not None:
@@ -84,7 +84,7 @@ class NN(object):
 
 class NNChess(NN):
     def _get_nn(self):
-        reg = regularizers.l2(0.005)
+        reg = regularizers.l2(0.0025)
         activ_hidden = "relu"  # linear relu elu sigmoid tanh softmax
         activ_out = "softmax"  # linear relu elu sigmoid tanh softmax
         optimizer = "nadam"  # sgd rmsprop adagrad adadelta adamax adam nadam
@@ -96,19 +96,19 @@ class NNChess(NN):
         conv1 = layers.Conv2D(16, kernel_size=(3, 3), activation=activ_hidden, kernel_regularizer=reg)(position)
         main1 = layers.concatenate([layers.Flatten()(conv1), layers.Flatten()(position)])
         main1 = layers.Dropout(0.25)(main1)
-        dense1 = layers.Dense(32, activation=activ_hidden, kernel_regularizer=reg)(main1)
+        dense1 = layers.Dense(128, activation=activ_hidden, kernel_regularizer=reg)(main1)
 
         conv2 = layers.Conv2D(32, kernel_size=(3, 3), activation=activ_hidden, kernel_regularizer=reg)(conv1)
         main2 = layers.concatenate([layers.Flatten()(conv2), dense1])
         main2 = layers.Dropout(0.1)(main2)
-        dense2 = layers.Dense(64, activation=activ_hidden, kernel_regularizer=reg)(main2)
+        dense2 = layers.Dense(128, activation=activ_hidden, kernel_regularizer=reg)(main2)
 
         conv3 = layers.Conv2D(64, kernel_size=(3, 3), activation=activ_hidden, kernel_regularizer=reg)(conv2)
         pool1 = layers.MaxPool2D()(conv3)
         main3 = layers.concatenate([layers.Flatten()(pool1), dense2])
         # main3 = layers.Dropout(0.1)(main3)
 
-        main3 = layers.Flatten()(main3)
+        # main3 = layers.Flatten()(main3)
 
         # main3 = layers.concatenate([main3, flags])
         # dense3 = layers.Dense(64, activation=activ_hidden, kernel_regularizer=reg)(main3)
@@ -136,7 +136,7 @@ class NNChess(NN):
         for move_rec in data:
             assert isinstance(move_rec, MoveRecord)
 
-            pos, evl, move = move_rec.position, move_rec.forced_eval, move_rec.get_move_num()
+            pos, evl, move = move_rec.position, move_rec.eval, move_rec.get_move_num()
 
             evals[batch_n][0] = evl if evl is not None else 0.5
             evals[batch_n][1] = 1.0 - evals[batch_n][0]

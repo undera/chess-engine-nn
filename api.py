@@ -6,11 +6,11 @@ from threading import Thread
 from chess import WHITE, BLACK
 
 from chessnn.nn import NN
-from chessnn.player import Player
+from chessnn.player import NNPLayer
 from training import play_one_game
 
 
-class PlayerCLI(Player):
+class PlayerCLI(NNPLayer):
 
     def _choose_best_move(self):
         print("Opponent's move: %s" % self.board.move_stack[-1])
@@ -50,7 +50,7 @@ class ChessAPIHandler(SimpleHTTPRequestHandler):
         self.wfile.write(bytes(str(item), 'ascii'))
 
 
-class PlayerAPI(Player):
+class PlayerAPI(NNPLayer):
 
     def __init__(self, color) -> None:
         super().__init__(color, None)
@@ -80,7 +80,7 @@ if __name__ == "__main__":
     logging.basicConfig(level=logging.DEBUG)
 
     white = PlayerAPI(WHITE)
-    black = Player(BLACK, NN("nn.hdf5"))
+    black = NNPLayer(BLACK, NN("nn.hdf5"))
 
     cnt = 1
     while True:

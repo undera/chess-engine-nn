@@ -12,15 +12,13 @@ from chessnn import MoveRecord, BoardOptim, nn
 class PlayerBase(object):
     moves_log: List[MoveRecord]
     board: BoardOptim
-    nn: nn.NN
 
-    def __init__(self, name, color, net) -> None:
+    def __init__(self, name, color) -> None:
         super().__init__()
         self.name = name
         self.color = color
         # noinspection PyTypeChecker
         self.board = None
-        self.nn = net
         self.moves_log = []
 
     def get_moves(self):
@@ -42,12 +40,11 @@ class PlayerBase(object):
     def _get_moverec(self, move, geval, in_round):
         pos = self.board.get_position() if self.color == chess.WHITE else self.board.mirror().get_position()
         moveflip = move if self.color == chess.WHITE else self._mirror_move(move)
-        piece_type = self.board.piece_at(move.from_square).piece_type
+        piece = self.board.piece_at(move.from_square)
+        piece_type = piece.piece_type if piece else None
         moverec = MoveRecord(pos, moveflip, self.board.halfmove_clock / 100.0, piece_type)
         moverec.from_round = in_round
-        moverec.from_square = moveflip.from_square
-        moverec.to_square = moveflip.to_square
-        moverec.forced_eval = geval
+        moverec.eval = geval
         return moverec
 
     def _log_move(self, moverec):
@@ -57,7 +54,6 @@ class PlayerBase(object):
 
     def _mirror_move(self, move):
         """
-
         :type move: chess.Move
         """
 
@@ -78,18 +74,24 @@ class PlayerBase(object):
         pass
 
 
-class Player(PlayerBase):
+class NNPLayer(PlayerBase):
+    nn: nn.NN
+
+    def __init__(self, name, color, net) -> None:
+        super().__init__(name, color)
+        self.nn = net
+        self.invalid_moves = 0
+
     def _choose_best_move(self):
         pos = self.board.get_position() if self.color == chess.WHITE else self.board.mirror().get_position()
-
         moverec = MoveRecord(pos, chess.Move.null(), self.board.halfmove_clock / 100.0, None)
         scores4096, = self.nn.inference([moverec])  # , geval
         geval = [0]
         return self._scores_to_move(scores4096), geval[0]
 
-    def _scores_to_move(self, scores_restored):
+    def _scores_to_move(self, scores4096):
         cnt = 0
-        for idx, score in sorted(enumerate(scores_restored), key=lambda x: -x[1]):
+        for idx, score in sorted(enumerate(scores4096), key=lambda x: -x[1]):
             move = chess.Move(idx // 64, idx % 64)
             if self.color == chess.BLACK:
                 flipped = self._mirror_move(move)
@@ -104,12 +106,13 @@ class Player(PlayerBase):
             logging.warning("No valid moves")
             move = chess.Move.null()
         logging.debug("Invalid moves skipped: %s", cnt)
+        self.invalid_moves += cnt
         return move
 
 
 class Stockfish(PlayerBase):
     def __init__(self, color) -> None:
-        super().__init__("Stockfish", color, None)
+        super().__init__("Stockfish", color)
         self.engine = SimpleEngine.popen_uci("stockfish")
 
     def _choose_best_move(self):

@@ -173,4 +173,4 @@ I've build a NN structure that uses convolutional layers with additional route o
 
 ### 18 Aug 2019
 
-I fixed that issue with move flipping, will see how it affects the model.
+I fixed that issue with move flipping, will see how it affects the model. Looks like learning rate has improved a bit.

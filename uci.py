@@ -7,7 +7,7 @@ from chess.engine import SimpleEngine
 
 from chessnn import BoardOptim, is_debug
 from chessnn.nn import NNChess
-from chessnn.player import Player
+from chessnn.player import NNPLayer
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.DEBUG if is_debug() else logging.INFO)
@@ -17,7 +17,7 @@ if __name__ == "__main__":
     try:
         board = BoardOptim.from_chess960_pos(random.randint(0, 959))
         nn = NNChess("nn.hdf5")
-        white = Player("Lisa", WHITE, nn)
+        white = NNPLayer("Lisa", WHITE, nn)
         white.board = board
 
         while not board.is_game_over():

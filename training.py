@@ -3,20 +3,19 @@ import os
 import pickle
 import random
 import sys
-from typing import Set
 
 from chess import WHITE, BLACK, Move
 
-from chessnn import BoardOptim, MoveRecord, is_debug
+from chessnn import BoardOptim, is_debug
 from chessnn.nn import NNChess
-from chessnn.player import Player, Stockfish
+from chessnn.player import NNPLayer, Stockfish
 
 
 def play_one_game(pwhite, pblack, rnd):
     """
 
-    :type pwhite: Player
-    :type pblack: Player
+    :type pwhite: NNPLayer
+    :type pblack: NNPLayer
     :type rnd: int
     """
     board: BoardOptim = BoardOptim.from_chess960_pos(rnd % 960)
@@ -42,7 +41,22 @@ def play_one_game(pwhite, pblack, rnd):
             board.write_pgn(pwhite, pblack, os.path.join(os.path.dirname(__file__), "last.pgn"), rnd)
 
     result = board.result(claim_draw=True)
-    logging.info("Game #%d:\t%s by %s,\t%d moves", rnd, result, board.explain(), board.fullmove_number)
+
+    badp = 0
+    badc = 0
+    if isinstance(pwhite, NNPLayer):
+        badp += pwhite.invalid_moves
+        pwhite.invalid_moves = 0
+        badc += 1
+
+    if isinstance(pblack, NNPLayer):
+        badp += pblack.invalid_moves
+        pblack.invalid_moves = 0
+        badc += 1
+
+    badp = badp / badc
+
+    logging.info("Game #%d:\t%s by %s,\t%d moves, %d%% bad", rnd, result, board.explain(), board.fullmove_number, badp)
 
     return result
 
@@ -82,7 +96,7 @@ class DataSet(object):
         else:
             logging.debug("no increase")
 
-        while len(self.dataset) > 100000:
+        while False and len(self.dataset) > 500000:
             mmin = min([x.from_round for x in self.dataset])
             logging.info("Removing things older than %s", mmin)
             for x in list(self.dataset):
@@ -102,65 +116,59 @@ def play_with_score(pwhite, pblack):
     winning.load_moves()
     losing = DataSet("losing.pkl")
     losing.load_moves()
-    draw: Set[MoveRecord] = set()
-
-    if not is_debug() and winning.dataset:
-        # nn.train(winning.dataset | losing.dataset, 20);  # return
-        pass
+    draw = DataSet("losing.pkl")
 
     rnd = max([x.from_round for x in winning.dataset | losing.dataset]) if winning.dataset else 0
     while True:
-        result = play_one_game(pwhite, pblack, rnd)
+        if not (rnd % 960):
+            _retrain(winning, losing, draw)
 
+        result = play_one_game(pwhite, pblack, rnd)
         wmoves = pwhite.get_moves()
         bmoves = pblack.get_moves()
-
-        if result == '1-0':
-            # playsound.playsound('/usr/share/games/xboard/sounds/ding.wav')
-            for x, move in enumerate(wmoves):
-                move.eval = 1.0
-            for x, move in enumerate(bmoves):
-                move.eval = 0.0
-            winning.update(wmoves)
-            losing.update(bmoves)
-        elif result == '0-1':
-            for x, move in enumerate(bmoves):
-                move.eval = 1.0
-            for x, move in enumerate(wmoves):
-                move.eval = 0.0
-            winning.update(bmoves)
-            losing.update(wmoves)
-        else:
-            for x, move in enumerate(bmoves):
-                move.eval = 0.5
-            for x, move in enumerate(wmoves):
-                move.eval = 0.5
-            draw.update(wmoves)
-            draw.update(bmoves)
-
-        nn.train(wmoves + bmoves, 1)
-
+        _fill_sets(result, wmoves, bmoves, losing, winning, draw)
+        # nn.train(wmoves + bmoves, 1)
         rnd += 1
-        if not (rnd % 96):
-            # if had_decisive:
-            # winning.dataset -= losing.dataset
-            # winning.dataset -= draw
-            # losing.dataset -= winning.dataset
-            # losing.dataset -= draw
 
-            logging.info("W: %s\tL: %s\tD: %s", len(winning.dataset), len(losing.dataset), len(draw))
 
-            winning.dump_moves()
-            losing.dump_moves()
-            dataset = winning.dataset | losing.dataset
+def _retrain(winning, losing, draw):
+    logging.info("W: %s\tL: %s\tD: %s", len(winning.dataset), len(losing.dataset), len(draw.dataset))
+    winning.dump_moves()
+    losing.dump_moves()
+    dataset = winning.dataset | losing.dataset
+    lst = list(dataset)
+    random.shuffle(lst)
+    if lst:
+        nn.train(lst, 50)
+        nn.save("nn.hdf5")
+    winning.dataset.clear()
+    winning.dataset.clear()
+    losing.dataset.clear()
 
-            lst = list(dataset)
-            random.shuffle(lst)
-            # nn.train(lst, 20)
-            nn.save("nn.hdf5")
 
-            draw = set()
-
+def _fill_sets(result, wmoves, bmoves, losing, winning, draw):
+    if result == '1-0':
+        # playsound.playsound('/usr/share/games/xboard/sounds/ding.wav')
+        for x, move in enumerate(wmoves):
+            move.eval = 1.0
+        for x, move in enumerate(bmoves):
+            move.eval = 0.0
+        winning.update(wmoves)
+        losing.update(bmoves)
+    elif result == '0-1':
+        for x, move in enumerate(bmoves):
+            move.eval = 1.0
+        for x, move in enumerate(wmoves):
+            move.eval = 0.0
+        winning.update(bmoves)
+        losing.update(wmoves)
+    else:
+        for x, move in enumerate(bmoves):
+            move.eval = 0.5
+        for x, move in enumerate(wmoves):
+            move.eval = 0.5
+        draw.update(wmoves)
+        draw.update(bmoves)
 
 
 if __name__ == "__main__":
@@ -171,8 +179,8 @@ if __name__ == "__main__":
     #    os.remove("nn.hdf5")
 
     nn = NNChess("nn.hdf5")
-    white = Player("Lisa", WHITE, nn)
-    black = Player("Karen", BLACK, nn)
+    white = NNPLayer("Lisa", WHITE, nn)
+    black = NNPLayer("Karen", BLACK, nn)
     black = Stockfish(BLACK)
 
     try:

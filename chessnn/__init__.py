@@ -228,7 +228,7 @@ class MoveRecord(object):
     def __init__(self, position, move, fifty_progress, piece) -> None:
         super().__init__()
         self.fifty_progress = fifty_progress
-        self.forced_eval = None
+        self.eval = None
         self.ignore = False
 
         self.position = position
@@ -266,8 +266,8 @@ class MoveRecord(object):
         raise ValueError()
 
     def get_eval(self):
-        if self.forced_eval is not None:
-            return self.forced_eval
+        if self.eval is not None:
+            return self.eval
 
         return 0.0
 

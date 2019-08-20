@@ -57,7 +57,7 @@ class NN(object):
         res = self._model.fit(inputs, outputs,  # sample_weight=np.array(sample_weights),
                               validation_split=0.1 if (validation_data is None and epochs > 1) else 0.0, shuffle=True,
                               callbacks=cbs, verbose=2 if epochs > 1 else 0,
-                              epochs=epochs, batch_size=32)
+                              epochs=epochs)
         logging.info("Trained: %s", {x: y[-1] for x, y in res.history.items()})
 
         if validation_data is not None:
@@ -82,17 +82,57 @@ class NN(object):
         pass
 
 
+reg = regularizers.l2(0.001)
+activ_hidden = "sigmoid"  # linear relu elu sigmoid tanh softmax
+activ_out = "softmax"  # linear relu elu sigmoid tanh softmax
+optimizer = "nadam"  # sgd rmsprop adagrad adadelta adamax adam nadam
+
+
 class NNChess(NN):
     def _get_nn(self):
-        reg = regularizers.l2(0.0025)
-        activ_hidden = "relu"  # linear relu elu sigmoid tanh softmax
-        activ_out = "softmax"  # linear relu elu sigmoid tanh softmax
-        optimizer = "nadam"  # sgd rmsprop adagrad adadelta adamax adam nadam
 
         pos_shape = (8, 8, len(PIECE_TYPES) * 2)
         position = layers.Input(shape=pos_shape, name="position")
         # flags = layers.Input(shape=(1,), name="flags")
+        main = self.__nn_simple(position)
+        out_moves = layers.Dense(4096, activation=activ_out, name="moves")(main)
+        # out_eval = layers.Dense(2, activation=activ_out, name="eval")(main)
 
+        model = models.Model(inputs=[position], outputs=[out_moves])  # , flags # , out_eval
+        model.compile(optimizer=optimizer,
+                      loss="categorical_crossentropy",
+                      # loss_weights=[1.0, 0.1],
+                      metrics=['categorical_accuracy'])
+        return model
+
+    def __nn_simple(self, position):
+        flat = layers.Flatten()(position)
+        main1 = layers.Dense(128, activation=activ_hidden, kernel_regularizer=reg)(flat)
+        conc1 = layers.concatenate([flat, main1])
+        main2 = layers.Dense(64, activation=activ_hidden, kernel_regularizer=reg)(conc1)
+        conc2 = layers.concatenate([flat, main2])
+        main3 = layers.Dense(128, activation=activ_hidden, kernel_regularizer=reg)(conc2)
+        return main3
+
+    def __nn_residual(self, position):
+        # flags = layers.Input(shape=(1,), name="flags")
+        main = layers.Flatten()(position)
+
+        def _residual(inp, size):
+            # out = layers.Dropout(rate=0.05)(inp)
+            inp = layers.Dense(size, activation=activ_hidden, kernel_regularizer=reg)(inp)
+            out = layers.Dense(size, activation=activ_hidden, kernel_regularizer=reg)(inp)
+            out = layers.merge.multiply([inp, out])
+            # out = layers.Dense(size, activation=activ_hidden, kernel_regularizer=reg)(out)
+            return out
+
+        branch = main
+        for _ in range(1, 4):
+            branch = _residual(branch, 8 * 8 * _)
+
+        return branch
+
+    def _nn_conv(self, position):
         conv1 = layers.Conv2D(16, kernel_size=(3, 3), activation=activ_hidden, kernel_regularizer=reg)(position)
         main1 = layers.concatenate([layers.Flatten()(conv1), layers.Flatten()(position)])
         main1 = layers.Dropout(0.25)(main1)
@@ -113,16 +153,7 @@ class NNChess(NN):
         # main3 = layers.concatenate([main3, flags])
         # dense3 = layers.Dense(64, activation=activ_hidden, kernel_regularizer=reg)(main3)
 
-        main = main3
-        out_moves = layers.Dense(4096, activation=activ_out, name="moves")(main)
-        # out_eval = layers.Dense(2, activation=activ_out, name="eval")(main)
-
-        model = models.Model(inputs=[position], outputs=[out_moves])  # , flags # , out_eval
-        model.compile(optimizer=optimizer,
-                      loss="categorical_crossentropy",
-                      # loss_weights=[1.0, 0.1],
-                      metrics=['categorical_accuracy'])
-        return model
+        return main3
 
     def _data_to_training_set(self, data, is_inference=False):
         batch_len = len(data)

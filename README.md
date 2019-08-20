@@ -180,3 +180,9 @@ After some training, I see that NN does not give good moves vs SF. Will train it
 After some more training, it has approached a bit over 0.5 accuracy, probably for the first time from all my attempts. It's all less about NN structure, it's mostly about stupid bugs in complicated code.
 
 Still after massive training done, accuracy is barely above 0.5. Will need to experiment with NN structure now, I guess.
+
+### 20 Aug 2019
+
+I decided to do one step back and start with simple 2-layer NN. And I see the accuracy close to 0.5, which means that we get better training without bugs in input data. 
+
+After good amount of training I see that accuracy converges to 0.5, which does not mean any good state.

@@ -96,7 +96,7 @@ class DataSet(object):
         else:
             logging.debug("no increase")
 
-        while False and len(self.dataset) > 500000:
+        while len(self.dataset) > 200000:
             mmin = min([x.from_round for x in self.dataset])
             logging.info("Removing things older than %s", mmin)
             for x in list(self.dataset):
@@ -126,8 +126,8 @@ def play_with_score(pwhite, pblack):
         result = play_one_game(pwhite, pblack, rnd)
         wmoves = pwhite.get_moves()
         bmoves = pblack.get_moves()
-        _fill_sets(result, wmoves, bmoves, losing, winning, draw)
-        # nn.train(wmoves + bmoves, 1)
+        good_moves = _fill_sets(result, wmoves, bmoves, losing, winning, draw)
+        # nn.train(good_moves, 1)
         rnd += 1
 
 
@@ -135,15 +135,16 @@ def _retrain(winning, losing, draw):
     logging.info("W: %s\tL: %s\tD: %s", len(winning.dataset), len(losing.dataset), len(draw.dataset))
     winning.dump_moves()
     losing.dump_moves()
-    dataset = winning.dataset | losing.dataset
-    lst = list(dataset)
+
+    lst = list(winning.dataset)
     random.shuffle(lst)
     if lst:
-        nn.train(lst, 50)
+        nn.train(lst, 20)
         nn.save("nn.hdf5")
-    winning.dataset.clear()
-    winning.dataset.clear()
-    losing.dataset.clear()
+
+    # winning.dataset.clear()
+    # losing.dataset.clear()
+    # draw.dataset.clear()
 
 
 def _fill_sets(result, wmoves, bmoves, losing, winning, draw):
@@ -154,21 +155,24 @@ def _fill_sets(result, wmoves, bmoves, losing, winning, draw):
         for x, move in enumerate(bmoves):
             move.eval = 0.0
         winning.update(wmoves)
-        losing.update(bmoves)
+        # losing.update(bmoves)
+        return wmoves
     elif result == '0-1':
         for x, move in enumerate(bmoves):
             move.eval = 1.0
         for x, move in enumerate(wmoves):
             move.eval = 0.0
         winning.update(bmoves)
-        losing.update(wmoves)
+        # losing.update(wmoves)
+        return bmoves
     else:
         for x, move in enumerate(bmoves):
             move.eval = 0.5
         for x, move in enumerate(wmoves):
             move.eval = 0.5
-        draw.update(wmoves)
-        draw.update(bmoves)
+        # draw.update(wmoves)
+        # draw.update(bmoves)
+        return []
 
 
 if __name__ == "__main__":
@@ -180,7 +184,7 @@ if __name__ == "__main__":
 
     nn = NNChess("nn.hdf5")
     white = NNPLayer("Lisa", WHITE, nn)
-    black = NNPLayer("Karen", BLACK, nn)
+    # black = NNPLayer("Karen", BLACK, nn)
     black = Stockfish(BLACK)
 
     try:

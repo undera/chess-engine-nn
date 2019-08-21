@@ -94,7 +94,7 @@ class NNChess(NN):
         pos_shape = (8, 8, len(PIECE_TYPES) * 2)
         position = layers.Input(shape=pos_shape, name="position")
         # flags = layers.Input(shape=(1,), name="flags")
-        main = self.__nn_simple(position)
+        main = self.__nn_conv(position)
         out_moves = layers.Dense(4096, activation=activ_out, name="moves")(main)
         # out_eval = layers.Dense(2, activation=activ_out, name="eval")(main)
 
@@ -132,28 +132,27 @@ class NNChess(NN):
 
         return branch
 
-    def _nn_conv(self, position):
-        conv1 = layers.Conv2D(16, kernel_size=(3, 3), activation=activ_hidden, kernel_regularizer=reg)(position)
-        main1 = layers.concatenate([layers.Flatten()(conv1), layers.Flatten()(position)])
-        main1 = layers.Dropout(0.25)(main1)
-        dense1 = layers.Dense(128, activation=activ_hidden, kernel_regularizer=reg)(main1)
+    def __nn_conv(self, position):
+        conv1 = layers.Conv2D(16, kernel_size=(3, 3), activation="relu", kernel_regularizer=reg)(position)
+        conv2 = layers.Conv2D(32, kernel_size=(3, 3), activation="relu", kernel_regularizer=reg)(conv1)
+        conv3 = layers.Conv2D(64, kernel_size=(3, 3), activation="relu", kernel_regularizer=reg)(conv2)
 
-        conv2 = layers.Conv2D(32, kernel_size=(3, 3), activation=activ_hidden, kernel_regularizer=reg)(conv1)
-        main2 = layers.concatenate([layers.Flatten()(conv2), dense1])
+        flat = layers.Flatten()(position)
+        dense0 = layers.Dense(512, activation="sigmoid", kernel_regularizer=reg)(flat)
+
+        main1 = layers.concatenate([layers.Flatten()(conv1), dense0])
+        main1 = layers.Dropout(0.1)(main1)
+        dense1 = layers.Dense(256, activation="sigmoid", kernel_regularizer=reg)(main1)
+
+        main2 = layers.concatenate([layers.Flatten()(conv2), dense1, dense0])
         main2 = layers.Dropout(0.1)(main2)
-        dense2 = layers.Dense(128, activation=activ_hidden, kernel_regularizer=reg)(main2)
+        dense2 = layers.Dense(128, activation="sigmoid", kernel_regularizer=reg)(main2)
 
-        conv3 = layers.Conv2D(64, kernel_size=(3, 3), activation=activ_hidden, kernel_regularizer=reg)(conv2)
-        pool1 = layers.MaxPool2D()(conv3)
-        main3 = layers.concatenate([layers.Flatten()(pool1), dense2])
-        # main3 = layers.Dropout(0.1)(main3)
+        main3 = layers.concatenate([layers.Flatten()(conv3), dense2, dense1])
+        main3 = layers.Dropout(0.1)(main3)
+        dense3 = layers.Dense(256, activation="sigmoid", kernel_regularizer=reg)(main3)
 
-        # main3 = layers.Flatten()(main3)
-
-        # main3 = layers.concatenate([main3, flags])
-        # dense3 = layers.Dense(64, activation=activ_hidden, kernel_regularizer=reg)(main3)
-
-        return main3
+        return dense3
 
     def _data_to_training_set(self, data, is_inference=False):
         batch_len = len(data)
@@ -175,7 +174,7 @@ class NNChess(NN):
 
             inputs_flags[batch_n][0] = move_rec.fifty_progress
 
-            out_moves[batch_n][move] = 1.0
+            out_moves[batch_n][move] = evl
 
             batch_n += 1
 

@@ -186,3 +186,7 @@ Still after massive training done, accuracy is barely above 0.5. Will need to ex
 I decided to do one step back and start with simple 2-layer NN. And I see the accuracy close to 0.5, which means that we get better training without bugs in input data. 
 
 After good amount of training I see that accuracy converges to 0.5, which does not mean any good state.
+
+OMG, _it makes meaningful captures for the first time_! That happened after I changed learning process to "learn only from moves of winning side", which I decided to do after reading some articles about how to deal with negative samples, softmax, and milticlass outputs. Though training accuracy is now around ~0.25, I like the impact on moves that I got.
+
+As usual, I will leave it training versus SF for a night, maybe even for 48 hours. Let's see how it evolves. ... And after night of training it still converges into ~0.4 accuracy.

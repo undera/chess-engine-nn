@@ -202,3 +202,5 @@ Also, I changed structure of NN:
  - final move is decided on 1792 node output layer
  
  This net trains quite good now, I figured out loss, metrics and activations for aux and main outputs. Categorical accuracy of "moves" output is still below 0.5, but I see sample games with some attacks and captures, which is a good sign.
+ 
+ Meanwhile, S16 - Division P is live on https://tcec.chessdom.com/, Leela plays versus Stockfish again...

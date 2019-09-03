@@ -185,9 +185,6 @@ class BoardOptim(chess.Board):
             for our_attacked in SquareSet(self.attacks_mask(square)):
                 attacked[our_attacked] = 1.0
 
-        a = np.reshape(attacked, (8, 8))
-        d = np.reshape(defended, (8, 8))
-
         return attacked, defended
 
     def _plot(board, matrix, position, fig, caption):

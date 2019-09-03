@@ -194,3 +194,11 @@ As usual, I will leave it training versus SF for a night, maybe even for 48 hour
 ### 3 Sep 2019
 
 Having short break from primary job, I implemented more efficient way to represent possible moves output from NN: it includes only moves that are theoretically possible on board. This limits output size from 4096 into 1792 combinations, which serves well on dense type of layers.
+
+Also, I changed structure of NN:
+ - 2D-convolutional branches are made for kernel size 3, 4, 5, 6, 7, 8
+ - concatenation of all conv branches comes into 2 aux outputs 8x8: attacked squares and defended squares
+ - output from attacked and defended is concatenated with original position and fed into simple 2-layer Dense part. The assumption is that knowing piece positions, attacked squares and defended squares is sufficient to make "not too dumb" moves.
+ - final move is decided on 1792 node output layer
+ 
+ This net trains quite good now, I figured out loss, metrics and activations for aux and main outputs. Categorical accuracy of "moves" output is still below 0.5, but I see sample games with some attacks and captures, which is a good sign.

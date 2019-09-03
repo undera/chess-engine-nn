@@ -8,7 +8,7 @@ from collections import Counter
 import chess
 import numpy as np
 import xxhash
-from chess import pgn, square_file, square_rank
+from chess import pgn
 from matplotlib import pyplot
 
 mpl_logger = logging.getLogger('matplotlib')
@@ -164,11 +164,28 @@ class BoardOptim(chess.Board):
             channel = piece.piece_type - 1
             if piece.color:
                 channel += len(PIECE_VALUES)
-            pos[square_file(square)][square_rank(square)][channel] = 1
+            pos[chess.square_file(square)][chess.square_rank(square)][channel] = 1
 
         pos.flags.writeable = False
 
         return pos
+
+    def get_attacked(self):
+        """
+        Enemy squares that we do attack
+        """
+        our = self.occupied_co[self.turn]
+        their = self.occupied_co[not self.turn]
+
+        attacked = np.full(64, 0.0)
+        for move in self.generate_pseudo_legal_moves(our, their):
+            attacked[move.to_square] = 1.0
+
+        return attacked
+
+    def get_defended(self):
+        defended = np.full(64, 0.0)
+        return defended
 
     def _plot(board, matrix, position, fig, caption):
         """
@@ -183,8 +200,8 @@ class BoardOptim(chess.Board):
         img = fig.matshow(matrix)
 
         for square in chess.SQUARES:
-            f = square_file(square)
-            r = square_rank(square)
+            f = chess.square_file(square)
+            r = chess.square_rank(square)
 
             if any(position[int(chess.WHITE)][f][r]):
                 color = chess.WHITE
@@ -239,6 +256,9 @@ class MoveRecord(object):
         self.to_square = move.to_square
         self.from_square = move.from_square
 
+        self.attacked = None
+        self.defended = None
+
     def __str__(self) -> str:
         return json.dumps({x: y for x, y in self.__dict__.items() if x not in ('forced_eval', 'kpis')})
 
@@ -273,10 +293,31 @@ class MoveRecord(object):
 
     def get_move_num(self):
         if self.from_square == self.to_square:
-            return 0  # null move
+            return -1  # null move
 
-        return 64 * self.from_square + self.to_square
+        return MOVES_MAP.index((self.from_square, self.to_square))
 
 
 def is_debug():
     return 'pydevd' in sys.modules
+
+
+def _possible_moves():
+    res = set()
+    for f in range(64):
+        for t in chess.SquareSet(chess.BB_RANK_ATTACKS[f][chess.BB_RANK_MASKS[f]]):
+            res.add((f, t))
+
+        for t in chess.SquareSet(chess.BB_FILE_ATTACKS[f][chess.BB_FILE_MASKS[f]]):
+            res.add((f, t))
+
+        for t in chess.SquareSet(chess.BB_DIAG_ATTACKS[f][chess.BB_DIAG_MASKS[f]]):
+            res.add((f, t))
+
+        for t in chess.SquareSet(chess.BB_KNIGHT_ATTACKS[f]):
+            res.add((f, t))
+
+    return list(sorted(res))
+
+
+MOVES_MAP = _possible_moves()

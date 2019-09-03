@@ -6,7 +6,7 @@ import chess
 import numpy as np
 from chess.engine import SimpleEngine, INFO_SCORE
 
-from chessnn import MoveRecord, BoardOptim, nn
+from chessnn import MoveRecord, BoardOptim, nn, is_debug, MOVES_MAP
 
 
 class PlayerBase(object):
@@ -33,19 +33,35 @@ class PlayerBase(object):
         moverec = self._get_moverec(move, geval, in_round)
         self._log_move(moverec)
         self.board.push(move)
-        logging.debug("%d. %r %.2f\n%s", self.board.fullmove_number, move.uci(), geval, self.board.unicode())
+        if is_debug():
+            logging.debug("%d. %r %.2f\n%s", self.board.fullmove_number, move.uci(), geval, self.board.unicode())
         not_over = move != chess.Move.null() and not self.board.is_game_over(claim_draw=False)
         return not_over
 
     def _get_moverec(self, move, geval, in_round):
-        pos = self.board.get_position() if self.color == chess.WHITE else self.board.mirror().get_position()
+        bflip = self.board if self.color == chess.WHITE else self.board.mirror()
+        pos = bflip.get_position()
         moveflip = move if self.color == chess.WHITE else self._mirror_move(move)
         piece = self.board.piece_at(move.from_square)
         piece_type = piece.piece_type if piece else None
         moverec = MoveRecord(pos, moveflip, self.board.halfmove_clock / 100.0, piece_type)
         moverec.from_round = in_round
         moverec.eval = geval
+
+        if self.color == chess.WHITE:
+            moverec.attacked = self.board.get_attacked()
+            moverec.defended = self.board.get_defended()
+        else:
+            moverec.attacked = bflip.get_attacked()
+            moverec.defended = bflip.get_defended()
+
         return moverec
+
+    def _flip64(self, array):
+        a64 = np.reshape(array, (8, 8))
+        a64flip = np.fliplr(a64)
+        res = np.reshape(a64flip, (64,))
+        return res
 
     def _log_move(self, moverec):
         if moverec.from_square != moverec.to_square:
@@ -85,14 +101,14 @@ class NNPLayer(PlayerBase):
     def _choose_best_move(self):
         pos = self.board.get_position() if self.color == chess.WHITE else self.board.mirror().get_position()
         moverec = MoveRecord(pos, chess.Move.null(), self.board.halfmove_clock / 100.0, None)
-        scores4096, = self.nn.inference([moverec])  # , geval
+        scores4096, _, _ = self.nn.inference([moverec])  # , geval
         geval = [0]
         return self._scores_to_move(scores4096), geval[0]
 
     def _scores_to_move(self, scores4096):
         cnt = 0
         for idx, score in sorted(enumerate(scores4096), key=lambda x: -x[1]):
-            move = chess.Move(idx // 64, idx % 64)
+            move = chess.Move(MOVES_MAP[idx][0], MOVES_MAP[idx][1])
             if self.color == chess.BLACK:
                 flipped = self._mirror_move(move)
                 move = flipped

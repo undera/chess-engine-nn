@@ -10,7 +10,7 @@ import absl.logging
 import numpy as np
 from chess import PIECE_TYPES
 
-from chessnn import MoveRecord
+from chessnn import MoveRecord, MOVES_MAP
 
 # noinspection PyProtectedMember
 logging.root.removeHandler(absl.logging._absl_handler)
@@ -45,7 +45,7 @@ class NN(object):
     def inference(self, data):
         inputs, outputs = self._data_to_training_set(data, True)
         res = self._model.predict_on_batch(inputs)
-        return [x for x in res]
+        return [x[0] for x in res]
 
     def train(self, data, epochs, validation_data=None):
         logging.info("Preparing training set...")
@@ -90,18 +90,22 @@ optimizer = "nadam"  # sgd rmsprop adagrad adadelta adamax adam nadam
 
 class NNChess(NN):
     def _get_nn(self):
-
         pos_shape = (8, 8, len(PIECE_TYPES) * 2)
         position = layers.Input(shape=pos_shape, name="position")
-        # flags = layers.Input(shape=(1,), name="flags")
         main = self.__nn_conv(position)
-        out_moves = layers.Dense(4096, activation=activ_out, name="moves")(main)
-        # out_eval = layers.Dense(2, activation=activ_out, name="eval")(main)
 
-        model = models.Model(inputs=[position], outputs=[out_moves])  # , flags # , out_eval
+        # main = layers.Dense(64 * 2, activation="sigmoid", kernel_regularizer=reg)(main)
+
+        out_attacked = layers.Dense(64, activation=activ_out, name="attacked")(main)
+        out_defended = layers.Dense(64, activation=activ_out, name="defended")(main)
+
+        conc = layers.concatenate([out_attacked, out_defended])
+        out_moves = layers.Dense(len(MOVES_MAP), activation=activ_out, name="moves")(conc)
+
+        model = models.Model(inputs=[position], outputs=[out_moves, out_attacked, out_defended])
         model.compile(optimizer=optimizer,
                       loss="categorical_crossentropy",
-                      # loss_weights=[1.0, 0.1],
+                      loss_weights=[1.0, 0.5, 0.75],
                       metrics=['categorical_accuracy'])
         return model
 
@@ -133,49 +137,64 @@ class NNChess(NN):
         return branch
 
     def __nn_conv(self, position):
-        conv1 = layers.Conv2D(16, kernel_size=(3, 3), activation="relu", kernel_regularizer=reg)(position)
-        conv2 = layers.Conv2D(32, kernel_size=(3, 3), activation="relu", kernel_regularizer=reg)(conv1)
-        conv3 = layers.Conv2D(64, kernel_size=(3, 3), activation="relu", kernel_regularizer=reg)(conv2)
+        conv31 = layers.Conv2D(8, kernel_size=(3, 3), activation="relu", kernel_regularizer=reg)(position)
+        conv32 = layers.Conv2D(16, kernel_size=(3, 3), activation="relu", kernel_regularizer=reg)(conv31)
+        conv33 = layers.Conv2D(32, kernel_size=(3, 3), activation="relu", kernel_regularizer=reg)(conv32)
+        flat3 = layers.Flatten()(conv33)
 
-        flat = layers.Flatten()(position)
-        dense0 = layers.Dense(512, activation="sigmoid", kernel_regularizer=reg)(flat)
+        conv51 = layers.Conv2D(8, kernel_size=(5, 5), activation="relu", kernel_regularizer=reg)(position)
+        conv52 = layers.Conv2D(16, kernel_size=(3, 3), activation="relu", kernel_regularizer=reg)(conv51)
+        flat5 = layers.Flatten()(conv52)
 
-        main1 = layers.concatenate([layers.Flatten()(conv1), dense0])
-        main1 = layers.Dropout(0.1)(main1)
-        dense1 = layers.Dense(256, activation="sigmoid", kernel_regularizer=reg)(main1)
+        conv61 = layers.Conv2D(8, kernel_size=(6, 6), activation="relu", kernel_regularizer=reg)(position)
+        # conv62 = layers.Conv2D(16, kernel_size=(3, 3), activation="relu", kernel_regularizer=reg)(conv61)
+        flat6 = layers.Flatten()(conv61)
 
-        main2 = layers.concatenate([layers.Flatten()(conv2), dense1, dense0])
-        main2 = layers.Dropout(0.1)(main2)
-        dense2 = layers.Dense(128, activation="sigmoid", kernel_regularizer=reg)(main2)
+        conv71 = layers.Conv2D(8, kernel_size=(7, 7), activation="relu", kernel_regularizer=reg)(position)
+        # conv72 = layers.Conv2D(16, kernel_size=(3, 3), activation="relu", kernel_regularizer=reg)(conv71)
+        flat7 = layers.Flatten()(conv71)
 
-        main3 = layers.concatenate([layers.Flatten()(conv3), dense2, dense1])
-        main3 = layers.Dropout(0.1)(main3)
-        dense3 = layers.Dense(256, activation="sigmoid", kernel_regularizer=reg)(main3)
+        conc = layers.concatenate([flat3, flat5, flat6, flat7])
+        dense1 = layers.Dense(256, activation="sigmoid", kernel_regularizer=reg)(conc)
 
-        return dense3
+        # main2 = layers.concatenate([layers.Flatten()(conv2), flat1, dense0])
+        # dense2 = layers.Dense(128, activation="sigmoid", kernel_regularizer=reg)(main2)
+
+        # main3 = layers.concatenate([layers.Flatten()(conv3), dense2, flat1])
+        # main3 = layers.Dropout(0.1)(main3)
+        # dense3 = layers.Dense(256, activation="sigmoid", kernel_regularizer=reg)(main3)
+
+        # concat = layers.concatenate([dense3])
+        return dense1
 
     def _data_to_training_set(self, data, is_inference=False):
         batch_len = len(data)
 
         inputs_pos = np.full((batch_len, 8, 8, len(PIECE_TYPES) * 2), 0.0)
         inputs_flags = np.full((batch_len, 1), 0.0)
-        out_moves = np.full((batch_len, 4096), 0.0)
+        out_moves = np.full((batch_len, len(MOVES_MAP)), 0.0)
+        out_attacks = np.full((batch_len, 64), 0.0)
+        out_threats = np.full((batch_len, 64), 0.0)
         evals = np.full((batch_len, 2), 0.0)
 
         batch_n = 0
-        for move_rec in data:
-            assert isinstance(move_rec, MoveRecord)
+        for moverec in data:
+            assert isinstance(moverec, MoveRecord)
 
-            pos, evl, move = move_rec.position, move_rec.eval, move_rec.get_move_num()
+            pos, evl, move = moverec.position, moverec.eval, moverec.get_move_num()
 
-            evals[batch_n][0] = evl if evl is not None else 0.5
+            evals[batch_n][0] = evl
             evals[batch_n][1] = 1.0 - evals[batch_n][0]
             inputs_pos[batch_n] = pos
 
-            inputs_flags[batch_n][0] = move_rec.fifty_progress
+            inputs_flags[batch_n][0] = moverec.fifty_progress
 
             out_moves[batch_n][move] = evl
+            na = np.count_nonzero(moverec.attacked)
+            out_attacks[batch_n] = moverec.attacked / na if na else moverec.attacked
+            nt = np.count_nonzero(moverec.defended)
+            out_threats[batch_n] = moverec.defended / nt if nt else moverec.defended
 
             batch_n += 1
 
-        return [inputs_pos], [out_moves]  # , inputs_flags #  , evals
+        return [inputs_pos], [out_moves, out_attacks, out_threats]  # , inputs_flags #  , evals

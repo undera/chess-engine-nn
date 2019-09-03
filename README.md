@@ -190,3 +190,7 @@ After good amount of training I see that accuracy converges to 0.5, which does n
 OMG, _it makes meaningful captures for the first time_! That happened after I changed learning process to "learn only from moves of winning side", which I decided to do after reading some articles about how to deal with negative samples, softmax, and milticlass outputs. Though training accuracy is now around ~0.25, I like the impact on moves that I got.
 
 As usual, I will leave it training versus SF for a night, maybe even for 48 hours. Let's see how it evolves. ... And after night of training it still converges into ~0.4 accuracy.
+
+### 3 Sep 2019
+
+Having short break from primary job, I implemented more efficient way to represent possible moves output from NN: it includes only moves that are theoretically possible on board. This limits output size from 4096 into 756 combinations, which serves well on dense type of layers.

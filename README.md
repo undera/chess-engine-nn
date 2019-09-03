@@ -193,4 +193,4 @@ As usual, I will leave it training versus SF for a night, maybe even for 48 hour
 
 ### 3 Sep 2019
 
-Having short break from primary job, I implemented more efficient way to represent possible moves output from NN: it includes only moves that are theoretically possible on board. This limits output size from 4096 into 756 combinations, which serves well on dense type of layers.
+Having short break from primary job, I implemented more efficient way to represent possible moves output from NN: it includes only moves that are theoretically possible on board. This limits output size from 4096 into 1792 combinations, which serves well on dense type of layers.

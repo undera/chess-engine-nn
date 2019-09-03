@@ -178,19 +178,11 @@ class BoardOptim(chess.Board):
         their = self.occupied_co[not self.turn]
 
         for square in SquareSet(our):
-            attacks = self.attacks_mask(square)
-            for their_attacked in SquareSet(attacks & their):
-                attacked[their_attacked] = 1.0
-
-            for our_defended in SquareSet(attacks & our):
+            for our_defended in SquareSet(self.attacks_mask(square)):
                 defended[our_defended] = 1.0
 
         for square in SquareSet(their):
-            attacks = self.attacks_mask(square)
-            for their_defended in SquareSet(attacks & their):
-                defended[their_defended] = 1.0
-
-            for our_attacked in SquareSet(attacks & our):
+            for our_attacked in SquareSet(self.attacks_mask(square)):
                 attacked[our_attacked] = 1.0
 
         a = np.reshape(attacked, (8, 8))

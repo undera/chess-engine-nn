@@ -127,8 +127,8 @@ def play_with_score(pwhite, pblack):
         wmoves = pwhite.get_moves()
         bmoves = pblack.get_moves()
         good_moves = _fill_sets(result, wmoves, bmoves, losing, winning, draw)
-        if good_moves:
-            nn.train(good_moves, 1)
+        #if good_moves:
+        #    nn.train(good_moves, 1)
         rnd += 1
 
 
@@ -186,7 +186,7 @@ if __name__ == "__main__":
     nn = NNChess("nn.hdf5")
     white = NNPLayer("Lisa", WHITE, nn)
     black = NNPLayer("Karen", BLACK, nn)
-    # black = Stockfish(BLACK)
+    black = Stockfish(BLACK)
 
     try:
         play_with_score(white, black)

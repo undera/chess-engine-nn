@@ -100,12 +100,14 @@ class NNChess(NN):
         out_defended = layers.Dense(64, activation=activ_out, name="defended")(main)
 
         conc = layers.concatenate([out_attacked, out_defended])
-        out_moves = layers.Dense(len(MOVES_MAP), activation=activ_out, name="moves")(conc)
+        main = layers.Dense(128, activation=activ_hidden)(main)
+        main = layers.Dense(128, activation=activ_hidden)(main)
+        out_moves = layers.Dense(len(MOVES_MAP), activation=activ_out, name="moves")(main)
 
         model = models.Model(inputs=[position], outputs=[out_moves, out_attacked, out_defended])
         model.compile(optimizer=optimizer,
                       loss="categorical_crossentropy",
-                      loss_weights=[1.0, 0.5, 0.75],
+                      loss_weights=[1.0, 0.5, 0.5],
                       metrics=['categorical_accuracy'])
         return model
 

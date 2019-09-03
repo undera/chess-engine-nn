@@ -48,12 +48,7 @@ class PlayerBase(object):
         moverec.from_round = in_round
         moverec.eval = geval
 
-        if self.color == chess.WHITE:
-            moverec.attacked = self.board.get_attacked()
-            moverec.defended = self.board.get_defended()
-        else:
-            moverec.attacked = bflip.get_attacked()
-            moverec.defended = bflip.get_defended()
+        moverec.attacked, moverec.defended = bflip.get_attacked_defended()
 
         return moverec
 

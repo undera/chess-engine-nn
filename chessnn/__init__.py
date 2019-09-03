@@ -8,7 +8,7 @@ from collections import Counter
 import chess
 import numpy as np
 import xxhash
-from chess import pgn
+from chess import pgn, SquareSet, SQUARES
 from matplotlib import pyplot
 
 mpl_logger = logging.getLogger('matplotlib')
@@ -170,22 +170,33 @@ class BoardOptim(chess.Board):
 
         return pos
 
-    def get_attacked(self):
-        """
-        Enemy squares that we do attack
-        """
+    def get_attacked_defended(self):
+        attacked = np.full(64, 0.0)
+        defended = np.full(64, 0.0)
+
         our = self.occupied_co[self.turn]
         their = self.occupied_co[not self.turn]
 
-        attacked = np.full(64, 0.0)
-        for move in self.generate_pseudo_legal_moves(our, their):
-            attacked[move.to_square] = 1.0
+        for square in SquareSet(our):
+            attacks = self.attacks_mask(square)
+            for their_attacked in SquareSet(attacks & their):
+                attacked[their_attacked] = 1.0
 
-        return attacked
+            for our_defended in SquareSet(attacks & our):
+                defended[our_defended] = 1.0
 
-    def get_defended(self):
-        defended = np.full(64, 0.0)
-        return defended
+        for square in SquareSet(their):
+            attacks = self.attacks_mask(square)
+            for their_defended in SquareSet(attacks & their):
+                defended[their_defended] = 1.0
+
+            for our_attacked in SquareSet(attacks & our):
+                attacked[our_attacked] = 1.0
+
+        a = np.reshape(attacked, (8, 8))
+        d = np.reshape(defended, (8, 8))
+
+        return attacked, defended
 
     def _plot(board, matrix, position, fig, caption):
         """
@@ -304,18 +315,20 @@ def is_debug():
 
 def _possible_moves():
     res = set()
-    for f in range(64):
-        for t in chess.SquareSet(chess.BB_RANK_ATTACKS[f][chess.BB_RANK_MASKS[f]]):
+    for f in SQUARES:
+        for t in chess.SquareSet(chess.BB_RANK_ATTACKS[f][0]):
             res.add((f, t))
 
-        for t in chess.SquareSet(chess.BB_FILE_ATTACKS[f][chess.BB_FILE_MASKS[f]]):
+        for t in chess.SquareSet(chess.BB_FILE_ATTACKS[f][0]):
             res.add((f, t))
 
-        for t in chess.SquareSet(chess.BB_DIAG_ATTACKS[f][chess.BB_DIAG_MASKS[f]]):
+        for t in chess.SquareSet(chess.BB_DIAG_ATTACKS[f][0]):
             res.add((f, t))
 
         for t in chess.SquareSet(chess.BB_KNIGHT_ATTACKS[f]):
             res.add((f, t))
+
+    assert (10, 26) in res
 
     return list(sorted(res))
 

@@ -80,7 +80,7 @@ if __name__ == "__main__":
     logging.basicConfig(level=logging.DEBUG)
 
     white = PlayerAPI(WHITE)
-    black = NNPLayer(BLACK, NN("nn.hdf5"))
+    black = NNPLayer(BLACK, NN(True, "nn.hdf5"))
 
     cnt = 1
     while True:

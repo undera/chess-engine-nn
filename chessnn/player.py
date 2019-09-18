@@ -44,7 +44,7 @@ class PlayerBase(object):
         moveflip = move if self.color == chess.WHITE else self._mirror_move(move)
         piece = self.board.piece_at(move.from_square)
         piece_type = piece.piece_type if piece else None
-        moverec = MoveRecord(pos, moveflip, self.board.halfmove_clock / 100.0, piece_type)
+        moverec = MoveRecord(pos, moveflip, piece_type, self.board.fullmove_number, self.board.halfmove_clock, )
         moverec.from_round = in_round
         moverec.eval = geval
 
@@ -95,9 +95,9 @@ class NNPLayer(PlayerBase):
 
     def _choose_best_move(self):
         pos = self.board.get_position() if self.color == chess.WHITE else self.board.mirror().get_position()
-        moverec = MoveRecord(pos, chess.Move.null(), self.board.halfmove_clock / 100.0, None)
-        scores4096, _, _ = self.nn.inference([moverec])  # , geval
-        geval = [0]
+        moverec = MoveRecord(pos, chess.Move.null(), None, self.board.fullmove_number, self.board.halfmove_clock)
+        scores4096, geval, _, _ = self.nn.inference([moverec])
+        # geval = [0]
         return self._scores_to_move(scores4096), geval[0]
 
     def _scores_to_move(self, scores4096):

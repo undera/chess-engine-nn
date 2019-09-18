@@ -204,3 +204,7 @@ Also, I changed structure of NN:
  This net trains quite good now, I figured out loss, metrics and activations for aux and main outputs. Categorical accuracy of "moves" output is still below 0.5, but I see sample games with some attacks and captures, which is a good sign.
  
  Meanwhile, S16 - Division P is live on https://tcec.chessdom.com/, Leela plays versus Stockfish again...
+ 
+ ### 10 Sep 2019
+ 
+ Interesting thought: I should not use softmax on moves output layer. Just because possible moves are independent and score for them should be just independent sigmoid. Which also means that lost games can again be included in training set. There are some questions on training moves like this, since we only can pass single good/bad move as input. Ideal solution would be having own loss function.

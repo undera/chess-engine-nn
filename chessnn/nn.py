@@ -91,22 +91,23 @@ class NNChess(NN):
     def _get_nn(self):
         pos_shape = (8, 8, len(PIECE_TYPES) * 2)
         position = layers.Input(shape=pos_shape, name="position")
-        main = self.__nn_conv(position)
+        flags = layers.Input(shape=(3,), name="flags")
+        pos_analyzed = self.__nn_conv(position)
 
-        # main = layers.Dense(64 * 2, activation="sigmoid", kernel_regularizer=reg)(main)
+        out_attacked = layers.Dense(64, activation="sigmoid", name="attacked")(pos_analyzed)
+        out_defended = layers.Dense(64, activation="sigmoid", name="defended")(pos_analyzed)
 
-        out_attacked = layers.Dense(64, activation="sigmoid", name="attacked")(main)
-        out_defended = layers.Dense(64, activation="sigmoid", name="defended")(main)
-
-        conc = layers.concatenate([out_attacked, out_defended, layers.Flatten()(position)])
+        conc = layers.concatenate([out_attacked, out_defended, layers.Flatten()(position), flags])
         main = layers.Dense(128, activation=activ_hidden)(conc)
         main = layers.Dense(128, activation=activ_hidden)(main)
-        out_moves = layers.Dense(len(MOVES_MAP), activation="softmax", name="moves")(main)
+        out_moves = layers.Dense(len(MOVES_MAP), activation="sigmoid", name="moves")(main)
+        out_eval = layers.Dense(1, activation="sigmoid", name="eval")(main)
 
-        model = models.Model(inputs=[position], outputs=[out_moves, out_attacked, out_defended])
+        model = models.Model(inputs=[position, flags], outputs=[out_moves, out_eval, out_attacked, out_defended])
         model.compile(optimizer=optimizer,
-                      loss=["categorical_crossentropy", "binary_crossentropy", "binary_crossentropy", ],
-                      loss_weights=[1.0, 0.1, 0.1],
+                      loss=["categorical_crossentropy",
+                            "binary_crossentropy", "binary_crossentropy", "binary_crossentropy", ],
+                      # loss_weights=[1.0, 0.1, 0.1],
                       metrics=['categorical_accuracy', "accuracy"])
         return model
 
@@ -170,11 +171,11 @@ class NNChess(NN):
         batch_len = len(data)
 
         inputs_pos = np.full((batch_len, 8, 8, len(PIECE_TYPES) * 2), 0.0)
-        inputs_flags = np.full((batch_len, 1), 0.0)
+        inputs_flags = np.full((batch_len, 3), 0.0)
         out_moves = np.full((batch_len, len(MOVES_MAP)), 0.0)
         out_attacks = np.full((batch_len, 64), 0.0)
         out_threats = np.full((batch_len, 64), 0.0)
-        evals = np.full((batch_len, 2), 0.0)
+        out_evals = np.full((batch_len, 1), 0.0)
 
         batch_n = 0
         for moverec in data:
@@ -182,11 +183,12 @@ class NNChess(NN):
 
             pos, evl, move = moverec.position, moverec.eval, moverec.get_move_num()
 
-            evals[batch_n][0] = evl
-            evals[batch_n][1] = 1.0 - evals[batch_n][0]
+            out_evals[batch_n][0] = evl
             inputs_pos[batch_n] = pos
 
-            inputs_flags[batch_n][0] = moverec.fifty_progress
+            inputs_flags[batch_n][0] = 1.0 / moverec.full_move
+            inputs_flags[batch_n][1] = 1.0 / (moverec.fifty_progress + 1)
+            inputs_flags[batch_n][2] = moverec.fifty_progress / 100.0
 
             out_moves[batch_n][move] = evl
             out_attacks[batch_n] = moverec.attacked
@@ -194,4 +196,4 @@ class NNChess(NN):
 
             batch_n += 1
 
-        return [inputs_pos], [out_moves, out_attacks, out_threats]  # , inputs_flags #  , evals
+        return [inputs_pos, inputs_flags], [out_moves, out_evals, out_attacks, out_threats]

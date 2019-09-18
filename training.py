@@ -56,7 +56,8 @@ def play_one_game(pwhite, pblack, rnd):
 
     badp = badp / badc
 
-    logging.info("Game #%d:\t%s by %s,\t%d moves, %d%% bad", rnd, result, board.explain(), board.fullmove_number, badp)
+    logging.info("Game #%d/%d:\t%s by %s,\t%d moves, %d%% bad", rnd, rnd % 960, result, board.explain(),
+                 board.fullmove_number, badp)
 
     return result
 
@@ -65,7 +66,7 @@ class DataSet(object):
     def __init__(self, fname) -> None:
         super().__init__()
         self.fname = fname
-        self.dataset = set()
+        self.dataset = []
 
     def dump_moves(self):
         if os.path.exists(self.fname):
@@ -80,7 +81,7 @@ class DataSet(object):
         if os.path.exists(self.fname):
             with open(self.fname, 'rb') as fhd:
                 loaded = pickle.load(fhd)
-                self.dataset.update(loaded)
+                self.dataset.extend(loaded)
 
     def update(self, moves):
         lprev = len(self.dataset)
@@ -88,7 +89,7 @@ class DataSet(object):
             if move.ignore:
                 move.forced_eval = 0
 
-        self.dataset.update(moves)
+        self.dataset.extend(moves)
         if len(self.dataset) - lprev < len(moves):
             logging.debug("partial increase")
         elif len(self.dataset) - lprev == len(moves):
@@ -96,7 +97,7 @@ class DataSet(object):
         else:
             logging.debug("no increase")
 
-        while len(self.dataset) > 200000:
+        while len(self.dataset) > 50000:
             mmin = min([x.from_round for x in self.dataset])
             logging.info("Removing things older than %s", mmin)
             for x in list(self.dataset):
@@ -118,7 +119,7 @@ def play_with_score(pwhite, pblack):
     losing.load_moves()
     draw = DataSet("losing.pkl")
 
-    rnd = max([x.from_round for x in winning.dataset | losing.dataset]) if winning.dataset else 0
+    rnd = max([x.from_round for x in winning.dataset + losing.dataset]) if winning.dataset else 0
     while True:
         if not (rnd % 960):
             _retrain(winning, losing, draw)
@@ -127,8 +128,10 @@ def play_with_score(pwhite, pblack):
         wmoves = pwhite.get_moves()
         bmoves = pblack.get_moves()
         good_moves = _fill_sets(result, wmoves, bmoves, losing, winning, draw)
-        #if good_moves:
-        #    nn.train(good_moves, 1)
+        if good_moves and False:
+            moves = wmoves + bmoves
+            random.shuffle(moves)
+            nn.train(moves, 1)
         rnd += 1
 
 
@@ -137,7 +140,7 @@ def _retrain(winning, losing, draw):
     winning.dump_moves()
     losing.dump_moves()
 
-    lst = list(winning.dataset)
+    lst = list(winning.dataset + losing.dataset)
     random.shuffle(lst)
     if lst:
         nn.train(lst, 20)
@@ -156,7 +159,7 @@ def _fill_sets(result, wmoves, bmoves, losing, winning, draw):
         for x, move in enumerate(bmoves):
             move.eval = 0.0
         winning.update(wmoves)
-        # losing.update(bmoves)
+        losing.update(bmoves)
         return wmoves
     elif result == '0-1':
         for x, move in enumerate(bmoves):
@@ -164,7 +167,7 @@ def _fill_sets(result, wmoves, bmoves, losing, winning, draw):
         for x, move in enumerate(wmoves):
             move.eval = 0.0
         winning.update(bmoves)
-        # losing.update(wmoves)
+        losing.update(wmoves)
         return bmoves
     else:
         for x, move in enumerate(bmoves):

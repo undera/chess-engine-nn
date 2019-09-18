@@ -7,7 +7,6 @@ from collections import Counter
 
 import chess
 import numpy as np
-import xxhash
 from chess import pgn, SquareSet, SQUARES
 from matplotlib import pyplot
 
@@ -242,8 +241,11 @@ class BoardOptim(chess.Board):
 class MoveRecord(object):
     piece: chess.Piece
 
-    def __init__(self, position, move, fifty_progress, piece) -> None:
+    def __init__(self, position, move, piece, move_number, fifty_progress) -> None:
         super().__init__()
+        # TODO: add en passant square info
+        # TODO: add castling rights info
+        self.full_move = move_number
         self.fifty_progress = fifty_progress
         self.eval = None
         self.ignore = False
@@ -261,29 +263,6 @@ class MoveRecord(object):
 
     def __str__(self) -> str:
         return json.dumps({x: y for x, y in self.__dict__.items() if x not in ('forced_eval', 'kpis')})
-
-    def __hash__(self):
-        h = xxhash.xxh64()
-        h.update(self.position)
-        return sum([hash(x) for x in (h.intdigest(), self.to_square, self.from_square, self.piece)])
-
-    def __eq__(self, o) -> bool:
-        """
-        :type o: MoveRecord
-        """
-        pself = xxhash.xxh64()
-        pself.update(self.position)
-        po = xxhash.xxh64()
-        po.update(o.position)
-
-        return pself.intdigest() == po.intdigest() and self.piece == o.piece and self.from_square == o.from_square \
-               and self.to_square == o.to_square
-
-    def __ne__(self, o) -> bool:
-        """
-        :type o: MoveRecord
-        """
-        raise ValueError()
 
     def get_eval(self):
         if self.eval is not None:

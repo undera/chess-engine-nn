@@ -85,9 +85,9 @@ class NN(object):
         pass
 
 
-reg = None  # regularizers.l2(0.001)
+reg = regularizers.l2(0.001)
 activ_hidden = "sigmoid"  # linear relu elu sigmoid tanh softmax
-optimizer = "nadam"  # sgd rmsprop adagrad adadelta adamax adam nadam
+optimizer = "rmsprop"  # sgd rmsprop adagrad adadelta adamax adam nadam
 
 
 class NNChess(NN):
@@ -95,14 +95,14 @@ class NNChess(NN):
         pos_shape = (8, 8, len(PIECE_TYPES) * 2)
         position = layers.Input(shape=pos_shape, name="position")
         flags = layers.Input(shape=(3,), name="flags")
-        pos_analyzed = self.__nn_simple(position)
+        pos_analyzed = self.__nn_conv(position)
 
-        out_attacked = layers.Dense(64, activation="sigmoid", name="attacked")(pos_analyzed)
-        out_defended = layers.Dense(64, activation="sigmoid", name="defended")(pos_analyzed)
+        out_attacked = layers.Dense(64, activation="sigmoid", kernel_regularizer=reg, name="attacked")(pos_analyzed)
+        out_defended = layers.Dense(64, activation="sigmoid", kernel_regularizer=reg, name="defended")(pos_analyzed)
 
         conc = layers.concatenate([out_attacked, out_defended, layers.Flatten()(position), flags])
-        main = layers.Dense(128, activation=activ_hidden)(conc)
-        main = layers.Dense(128, activation=activ_hidden)(main)
+        main = layers.Dense(128, activation='relu', kernel_regularizer=reg)(conc)
+        main = layers.Dense(128, activation='relu', kernel_regularizer=reg)(main)
         out_moves = layers.Dense(len(MOVES_MAP), activation="softmax", name="moves")(main)
         out_eval = layers.Dense(1, activation="sigmoid", name="eval")(main)
 
@@ -110,7 +110,7 @@ class NNChess(NN):
         model.compile(optimizer=optimizer,
                       loss=["categorical_crossentropy",
                             "binary_crossentropy", "binary_crossentropy", "binary_crossentropy", ],
-                      # loss_weights=[1.0, 0.1, 0.1],
+                      loss_weights=[1.0, 0.0, 0.0, 0.0],
                       metrics=['categorical_accuracy', "accuracy"])
         return model
 
@@ -184,16 +184,17 @@ class NNChess(NN):
         for moverec in data:
             assert isinstance(moverec, MoveRecord)
 
-            pos, evl, move = moverec.position, moverec.eval, moverec.get_move_num()
+            evl = moverec.eval
 
             out_evals[batch_n][0] = evl
-            inputs_pos[batch_n] = pos
+            inputs_pos[batch_n] = moverec.position
 
             inputs_flags[batch_n][0] = 1.0 / moverec.full_move
             inputs_flags[batch_n][1] = 1.0 / (moverec.fifty_progress + 1)
             inputs_flags[batch_n][2] = moverec.fifty_progress / 100.0
 
-            out_moves[batch_n][move] = evl
+            out_moves[batch_n] = np.full((len(MOVES_MAP, )), 0.0 if evl else 1.0 / (len(MOVES_MAP) - 1))
+            out_moves[batch_n][moverec.get_move_num()] = evl
             out_attacks[batch_n] = moverec.attacked
             out_threats[batch_n] = moverec.defended
 
@@ -207,6 +208,6 @@ class NNChess(NN):
 
     def _moves_iter(self, scores):
         for idx, score in sorted(np.ndenumerate(scores), key=itemgetter(1), reverse=True):
-            idx=idx[0]
+            idx = idx[0]
             move = chess.Move(MOVES_MAP[idx][0], MOVES_MAP[idx][1])
             yield move

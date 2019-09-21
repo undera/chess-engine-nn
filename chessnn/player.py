@@ -97,10 +97,9 @@ class NNPLayer(PlayerBase):
         pos = self.board.get_position() if self.color == chess.WHITE else self.board.mirror().get_position()
         moverec = MoveRecord(pos, chess.Move.null(), None, self.board.fullmove_number, self.board.halfmove_clock)
         movegen, geval, _, _ = self.nn.inference([moverec])
-        # geval = [0]
         return self._scores_to_move(movegen), geval[0]
 
-    def _scores_to_move(self, movegen):  # TODO: move this code to NNChess
+    def _scores_to_move(self, movegen):
         cnt = 0
         for move in movegen:
             if self.color == chess.BLACK:

@@ -121,7 +121,7 @@ def play_with_score(pwhite, pblack):
 
     rnd = max([x.from_round for x in winning.dataset + losing.dataset]) if winning.dataset else 0
     while True:
-        if not (rnd % 1):
+        if not ((rnd+1) % 96):
             _retrain(winning, losing, draw)
 
         result = play_one_game(pwhite, pblack, rnd)
@@ -143,9 +143,9 @@ def _retrain(winning, losing, draw):
     lst = list(winning.dataset + losing.dataset)
     random.shuffle(lst)
     if lst:
-        nn.train(lst, 50)
-        raise ValueError()
+        nn.train(lst, 20)
         nn.save("nn.hdf5")
+        #raise ValueError()
 
     # winning.dataset.clear()
     # losing.dataset.clear()

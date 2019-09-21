@@ -110,7 +110,7 @@ class NNChess(NN):
         model.compile(optimizer=optimizer,
                       loss=["categorical_crossentropy",
                             "binary_crossentropy", "binary_crossentropy", "binary_crossentropy", ],
-                      loss_weights=[1.0, 0.0, 0.0, 0.0],
+                      #loss_weights=[1.0, 0.0, 0.0, 0.0],
                       metrics=['categorical_accuracy', "accuracy"])
         return model
 

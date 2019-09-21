@@ -144,8 +144,8 @@ def _retrain(winning, losing, draw):
     random.shuffle(lst)
     if lst:
         nn.train(lst, 50)
-        nn.save("nn.hdf5")
         raise ValueError()
+        nn.save("nn.hdf5")
 
     # winning.dataset.clear()
     # losing.dataset.clear()

@@ -6,7 +6,10 @@ from abc import abstractmethod
 
 # from https://github.com/tensorflow/tensorflow/issues/26691
 # noinspection PyPackageRequirements
+from operator import itemgetter
+
 import absl.logging
+import chess
 import numpy as np
 from chess import PIECE_TYPES
 
@@ -82,7 +85,7 @@ class NN(object):
         pass
 
 
-reg = regularizers.l2(0.001)
+reg = None  # regularizers.l2(0.001)
 activ_hidden = "sigmoid"  # linear relu elu sigmoid tanh softmax
 optimizer = "nadam"  # sgd rmsprop adagrad adadelta adamax adam nadam
 
@@ -92,7 +95,7 @@ class NNChess(NN):
         pos_shape = (8, 8, len(PIECE_TYPES) * 2)
         position = layers.Input(shape=pos_shape, name="position")
         flags = layers.Input(shape=(3,), name="flags")
-        pos_analyzed = self.__nn_conv(position)
+        pos_analyzed = self.__nn_simple(position)
 
         out_attacked = layers.Dense(64, activation="sigmoid", name="attacked")(pos_analyzed)
         out_defended = layers.Dense(64, activation="sigmoid", name="defended")(pos_analyzed)
@@ -100,7 +103,7 @@ class NNChess(NN):
         conc = layers.concatenate([out_attacked, out_defended, layers.Flatten()(position), flags])
         main = layers.Dense(128, activation=activ_hidden)(conc)
         main = layers.Dense(128, activation=activ_hidden)(main)
-        out_moves = layers.Dense(len(MOVES_MAP), activation="sigmoid", name="moves")(main)
+        out_moves = layers.Dense(len(MOVES_MAP), activation="softmax", name="moves")(main)
         out_eval = layers.Dense(1, activation="sigmoid", name="eval")(main)
 
         model = models.Model(inputs=[position, flags], outputs=[out_moves, out_eval, out_attacked, out_defended])
@@ -197,3 +200,13 @@ class NNChess(NN):
             batch_n += 1
 
         return [inputs_pos, inputs_flags], [out_moves, out_evals, out_attacks, out_threats]
+
+    def inference(self, data):
+        inference = super().inference(data)
+        return [self._moves_iter(inference[0])] + inference[1:]
+
+    def _moves_iter(self, scores):
+        for idx, score in sorted(np.ndenumerate(scores), key=itemgetter(1), reverse=True):
+            idx=idx[0]
+            move = chess.Move(MOVES_MAP[idx][0], MOVES_MAP[idx][1])
+            yield move

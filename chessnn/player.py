@@ -96,14 +96,13 @@ class NNPLayer(PlayerBase):
     def _choose_best_move(self):
         pos = self.board.get_position() if self.color == chess.WHITE else self.board.mirror().get_position()
         moverec = MoveRecord(pos, chess.Move.null(), None, self.board.fullmove_number, self.board.halfmove_clock)
-        scores4096, geval, _, _ = self.nn.inference([moverec])
+        movegen, geval, _, _ = self.nn.inference([moverec])
         # geval = [0]
-        return self._scores_to_move(scores4096), geval[0]
+        return self._scores_to_move(movegen), geval[0]
 
-    def _scores_to_move(self, scores4096):
+    def _scores_to_move(self, movegen):  # TODO: move this code to NNChess
         cnt = 0
-        for idx, score in sorted(enumerate(scores4096), key=lambda x: -x[1]):
-            move = chess.Move(MOVES_MAP[idx][0], MOVES_MAP[idx][1])
+        for move in movegen:
             if self.color == chess.BLACK:
                 flipped = self._mirror_move(move)
                 move = flipped

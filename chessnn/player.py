@@ -1,9 +1,10 @@
 import logging
 from abc import abstractmethod
-from typing import List
+from typing import List, Union
 
 import chess
 import numpy as np
+from chess import BaseBoard
 from chess.engine import SimpleEngine, INFO_SCORE
 
 from chessnn import MoveRecord, BoardOptim, nn, is_debug, MOVES_MAP
@@ -39,12 +40,13 @@ class PlayerBase(object):
         return not_over
 
     def _get_moverec(self, move, geval, in_round):
-        bflip = self.board if self.color == chess.WHITE else self.board.mirror()
+        bflip: BoardOptim = self.board if self.color == chess.WHITE else self.board.mirror()
         pos = bflip.get_position()
         moveflip = move if self.color == chess.WHITE else self._mirror_move(move)
         piece = self.board.piece_at(move.from_square)
         piece_type = piece.piece_type if piece else None
-        moverec = MoveRecord(pos, moveflip, piece_type, self.board.fullmove_number, self.board.halfmove_clock, )
+        possible = bflip.get_possible_moves()
+        moverec = MoveRecord(pos, possible, moveflip, piece_type, self.board.fullmove_number, self.board.halfmove_clock)
         moverec.from_round = in_round
         moverec.eval = geval
 
@@ -94,9 +96,13 @@ class NNPLayer(PlayerBase):
         self.invalid_moves = 0
 
     def _choose_best_move(self):
-        pos = self.board.get_position() if self.color == chess.WHITE else self.board.mirror().get_position()
-        moverec = MoveRecord(pos, chess.Move.null(), None, self.board.fullmove_number, self.board.halfmove_clock)
-        movegen, geval, _, _ = self.nn.inference([moverec])
+        if self.color == chess.WHITE:
+            pos = self.board.get_position()
+        else:
+            pos = self.board.mirror().get_position()
+        moverec = MoveRecord(pos, None, chess.Move.null(), None, self.board.fullmove_number,
+                             self.board.halfmove_clock)
+        movegen, geval, _, _, _ = self.nn.inference([moverec])
         return self._scores_to_move(movegen), geval[0]
 
     def _scores_to_move(self, movegen):

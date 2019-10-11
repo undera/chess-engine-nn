@@ -85,7 +85,7 @@ class NN(object):
         pass
 
 
-reg = regularizers.l2(0.001)
+reg = None  # regularizers.l2(0.001)
 activ_hidden = "sigmoid"  # linear relu elu sigmoid tanh softmax
 optimizer = "rmsprop"  # sgd rmsprop adagrad adadelta adamax adam nadam
 
@@ -97,21 +97,25 @@ class NNChess(NN):
         flags = layers.Input(shape=(3,), name="flags")
         pos_analyzed = self.__nn_conv(position)
 
+        out_possible = layers.Dense(len(MOVES_MAP), activation="sigmoid", kernel_regularizer=reg, name="possible")(
+            pos_analyzed)
         out_attacked = layers.Dense(64, activation="sigmoid", kernel_regularizer=reg, name="attacked")(pos_analyzed)
         out_defended = layers.Dense(64, activation="sigmoid", kernel_regularizer=reg, name="defended")(pos_analyzed)
 
-        conc = layers.concatenate([out_attacked, out_defended, layers.Flatten()(position), flags])
+        conc = layers.concatenate([out_possible, out_attacked, out_defended, layers.Flatten()(position), flags])
         main = layers.Dense(128, activation='relu', kernel_regularizer=reg)(conc)
         main = layers.Dense(128, activation='relu', kernel_regularizer=reg)(main)
         out_moves = layers.Dense(len(MOVES_MAP), activation="softmax", name="moves")(main)
         out_eval = layers.Dense(1, activation="sigmoid", name="eval")(main)
 
-        model = models.Model(inputs=[position, flags], outputs=[out_moves, out_eval, out_attacked, out_defended])
+        model = models.Model(inputs=[position, flags],
+                             outputs=[out_moves, out_eval, out_possible, out_attacked, out_defended])
         model.compile(optimizer=optimizer,
                       loss=["categorical_crossentropy",
-                            "binary_crossentropy", "binary_crossentropy", "binary_crossentropy", ],
-                      #loss_weights=[1.0, 0.0, 0.0, 0.0],
-                      metrics=['categorical_accuracy', "accuracy"])
+                            "binary_crossentropy", "binary_crossentropy", "binary_crossentropy",
+                            "binary_crossentropy", ],
+                      loss_weights=[1.0, 1.0, 1.0, 1.0, 1.0],
+                      metrics=['binary_accuracy', 'categorical_accuracy', "accuracy"])
         return model
 
     def __nn_simple(self, position):
@@ -176,6 +180,7 @@ class NNChess(NN):
         inputs_pos = np.full((batch_len, 8, 8, len(PIECE_TYPES) * 2), 0.0)
         inputs_flags = np.full((batch_len, 3), 0.0)
         out_moves = np.full((batch_len, len(MOVES_MAP)), 0.0)
+        out_possible = np.full((batch_len, len(MOVES_MAP)), 0.0)
         out_attacks = np.full((batch_len, 64), 0.0)
         out_threats = np.full((batch_len, 64), 0.0)
         out_evals = np.full((batch_len, 1), 0.0)
@@ -195,12 +200,13 @@ class NNChess(NN):
 
             out_moves[batch_n] = np.full((len(MOVES_MAP, )), 0.0 if evl else 1.0 / (len(MOVES_MAP) - 1))
             out_moves[batch_n][moverec.get_move_num()] = evl
+            out_possible[batch_n] = moverec.possible
             out_attacks[batch_n] = moverec.attacked
             out_threats[batch_n] = moverec.defended
 
             batch_n += 1
 
-        return [inputs_pos, inputs_flags], [out_moves, out_evals, out_attacks, out_threats]
+        return [inputs_pos, inputs_flags], [out_moves, out_evals, out_possible, out_attacks, out_threats]
 
     def inference(self, data):
         inference = super().inference(data)

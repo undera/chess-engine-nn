@@ -237,14 +237,21 @@ class BoardOptim(chess.Board):
         pyplot.show()
         logging.debug("drawn")
 
+    def get_possible_moves(self):
+        res = np.full(len(MOVES_MAP), 0.0)
+        for move in self.generate_legal_moves():
+            res[MOVES_MAP.index((move.from_square, move.to_square))] = 1.0
+        return res
+
 
 class MoveRecord(object):
     piece: chess.Piece
 
-    def __init__(self, position, move, piece, move_number, fifty_progress) -> None:
+    def __init__(self, position, possible, move, piece, move_number, fifty_progress) -> None:
         super().__init__()
         # TODO: add en passant square info
         # TODO: add castling rights info
+        self.possible = possible
         self.full_move = move_number
         self.fifty_progress = fifty_progress
         self.eval = None

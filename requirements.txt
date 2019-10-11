@@ -1,0 +1,9 @@
+PIL
+genson
+jsonschema
+requests
+tensorflow
+chess
+matplotlib
+numpy
+python-chess

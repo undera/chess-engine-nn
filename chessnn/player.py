@@ -30,8 +30,11 @@ class PlayerBase(object):
         return res
 
     def makes_move(self, in_round):
-        move, geval = self._choose_best_move()
+        move, geval, maps_predicted = self._choose_best_move()
         moverec = self._get_moverec(move, geval, in_round)
+        maps_actual = (moverec.possible, moverec.attacked, moverec.defended)
+        if is_debug() and maps_predicted:
+            self.board.multiplot("", maps_predicted[1:], maps_actual[1:])
         self._log_move(moverec)
         self.board.push(move)
         if is_debug():
@@ -45,12 +48,12 @@ class PlayerBase(object):
         moveflip = move if self.color == chess.WHITE else self._mirror_move(move)
         piece = self.board.piece_at(move.from_square)
         piece_type = piece.piece_type if piece else None
-        possible = bflip.get_possible_moves()
-        moverec = MoveRecord(pos, possible, moveflip, piece_type, self.board.fullmove_number, self.board.halfmove_clock)
+        moverec = MoveRecord(pos, moveflip, piece_type, self.board.fullmove_number, self.board.halfmove_clock)
         moverec.from_round = in_round
         moverec.eval = geval
 
         moverec.attacked, moverec.defended = bflip.get_attacked_defended()
+        moverec.possible = bflip.get_possible_moves()
 
         return moverec
 
@@ -100,10 +103,9 @@ class NNPLayer(PlayerBase):
             pos = self.board.get_position()
         else:
             pos = self.board.mirror().get_position()
-        moverec = MoveRecord(pos, None, chess.Move.null(), None, self.board.fullmove_number,
-                             self.board.halfmove_clock)
-        movegen, geval, _, _, _ = self.nn.inference([moverec])
-        return self._scores_to_move(movegen), geval[0]
+        moverec = MoveRecord(pos, chess.Move.null(), None, self.board.fullmove_number, self.board.halfmove_clock)
+        movegen, geval, possible, attacked, defended = self.nn.inference([moverec])
+        return self._scores_to_move(movegen), geval[0], (possible, attacked, defended)
 
     def _scores_to_move(self, movegen):
         cnt = 0
@@ -141,4 +143,4 @@ class Stockfish(PlayerBase):
         else:
             forced_eval = -1 / abs(result.info['score'].relative.cp) + 1
 
-        return result.move, forced_eval
+        return result.move, forced_eval, None

@@ -154,7 +154,7 @@ Let me take some rest from working for new startup. Starting to change the code 
 - Let's switch to [Chess960 aka Fischerandom](https://en.wikipedia.org/wiki/Chess960) for better training variety, since it is generalization over classical Chess
 - Still no good solution for 3-fold and 50-move avoiding
 - for now, model's structure will get back to 2-layer dense, to speed up experiments
-- reading [article](https://towardsdatascience.com/how-to-teach-an-ai-to-play-games-deep-reinforcement-learning-28f9b920440a) about Q-Learning, maybe the learning strategy should change...
+- reading [article](https://towardsdatascience.com/how-to-teach-an-ai-to-play-games-deep-reinforcement-learning-28f9b920440a) about Q-Learning, maybe the learning strategy should change... Also on same topic: https://www.askforgametask.com/tutorial/machine-learning-algorithm-flappy-bird/
 
 Found out that training data were using positions _after_ move made as source of training. Oh, my...
 Fixing that seems helped learning a ton. Shame on me for overlooking this since the very beginning.

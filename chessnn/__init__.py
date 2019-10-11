@@ -186,7 +186,7 @@ class BoardOptim(chess.Board):
 
         return attacked, defended
 
-    def _plot(board, matrix, position, fig, caption):
+    def _plot(self, matrix, position, fig, caption):
         """
         :type matrix: numpy.array
         :type position:  numpy.array
@@ -202,9 +202,10 @@ class BoardOptim(chess.Board):
             f = chess.square_file(square)
             r = chess.square_rank(square)
 
-            if any(position[int(chess.WHITE)][f][r]):
+            cell = position[f][r]
+            if any(cell[:6]):
                 color = chess.WHITE
-            elif any(position[int(chess.BLACK)][f][r]):
+            elif any(cell[6:]):
                 color = chess.BLACK
             else:
                 continue
@@ -218,24 +219,31 @@ class BoardOptim(chess.Board):
 
         fig.set_title(caption)
 
-    def multiplot(board, memo, pos, wfrom, wto, pmoves):
-        if not is_debug() or board.fullmove_number < 1:
+    def multiplot(self, memo, predicted, actual):
+        if not is_debug() or self.fullmove_number < 1:
             return
+        pos = self.get_position()
 
         pyplot.close("all")
-        fig = pyplot.figure()
-        fig, axes = pyplot.subplots(4, 2, figsize=(5, 10), gridspec_kw={'wspace': 0.01, 'hspace': 0.3}, )
+        # fig = pyplot.figure()
+        fig, axes = pyplot.subplots(3, 2, figsize=(5, 10), gridspec_kw={'wspace': 0.01, 'hspace': 0.3})
 
-        board._plot(wfrom, pos, axes[0][0], "wfrom")
-        board._plot(wto, pos, axes[0][1], "wto")
+        pmap = ["attacked", "defended"]
+        for idx, param in enumerate(pmap):
+            self._plot(np.reshape(predicted[idx], (8, 8)), pos, axes[idx][0], "pre " + param)
+            self._plot(np.reshape(actual[idx], (8, 8)), pos, axes[idx][1], "act " + param)
 
-        board._plot(pmoves, pos, axes[3][0], "possible moves")
-
-        axes[3][1].axis("off")
-        axes[3][1].set_title(memo + " - " + chess.COLOR_NAMES[board.turn] + "#%d" % board.fullmove_number)
+        # axes[3][1].axis("off")
+        # axes[3][1].set_title(memo + " - " + chess.COLOR_NAMES[self.turn] + "#%d" % self.fullmove_number)
         # pyplot.tight_layout()
         pyplot.show()
         logging.debug("drawn")
+
+    def get_possible_moves(self):
+        res = np.full(len(MOVES_MAP), 0.0)
+        for move in self.generate_legal_moves():
+            res[MOVES_MAP.index((move.from_square, move.to_square))] = 1.0
+        return res
 
 
 class MoveRecord(object):
@@ -245,6 +253,7 @@ class MoveRecord(object):
         super().__init__()
         # TODO: add en passant square info
         # TODO: add castling rights info
+        self.possible = None
         self.full_move = move_number
         self.fifty_progress = fifty_progress
         self.eval = None

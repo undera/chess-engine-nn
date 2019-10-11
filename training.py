@@ -121,14 +121,14 @@ def play_with_score(pwhite, pblack):
 
     rnd = max([x.from_round for x in winning.dataset + losing.dataset]) if winning.dataset else 0
     while True:
-        if not ((rnd+1) % 96):
+        if not ((rnd+1) % 960):
             _retrain(winning, losing, draw)
 
         result = play_one_game(pwhite, pblack, rnd)
         wmoves = pwhite.get_moves()
         bmoves = pblack.get_moves()
         good_moves = _fill_sets(result, wmoves, bmoves, losing, winning, draw)
-        if good_moves and False:
+        if good_moves and True:
             moves = wmoves + bmoves
             random.shuffle(moves)
             nn.train(moves, 1)

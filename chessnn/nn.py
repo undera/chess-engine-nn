@@ -1,27 +1,16 @@
 import logging
 import os
 import time
-import warnings
 from abc import abstractmethod
-
-# from https://github.com/tensorflow/tensorflow/issues/26691
-# noinspection PyPackageRequirements
 from operator import itemgetter
 
-import absl.logging
 import chess
 import numpy as np
 from chess import PIECE_TYPES
+from tensorflow_core.python.keras import models, callbacks, layers
+from tensorflow_core.python.keras.utils.vis_utils import plot_model
 
 from chessnn import MoveRecord, MOVES_MAP
-
-# noinspection PyProtectedMember
-logging.root.removeHandler(absl.logging._absl_handler)
-
-os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
-with warnings.catch_warnings():
-    warnings.filterwarnings("ignore", category=FutureWarning)
-    from tensorflow.python.keras import models, layers, utils, callbacks, regularizers
 
 
 class NN(object):
@@ -38,8 +27,8 @@ class NN(object):
             logging.info("Starting with clean model")
             self._model = self._get_nn()
             self._model.summary(print_fn=logging.info)
-            utils.plot_model(self._model, to_file=os.path.join(os.path.dirname(__file__), '..', 'model.png'),
-                             show_shapes=True)
+            plot_model(self._model, to_file=os.path.join(os.path.dirname(__file__), '..', 'model.png'),
+                       show_shapes=True)
 
     def save(self, filename):
         logging.info("Saving model to: %s", filename)

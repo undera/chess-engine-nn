@@ -1,4 +1,4 @@
-PIL
+PILLOW
 genson
 jsonschema
 requests

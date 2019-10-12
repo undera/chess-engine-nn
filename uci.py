@@ -21,7 +21,7 @@ if __name__ == "__main__":
         white.board = board
 
         while not board.is_game_over():
-            if not white.makes_move(0):
+            if not white.makes_move():
                 break
 
             result = engine.play(board, chess.engine.Limit(time=0.100))

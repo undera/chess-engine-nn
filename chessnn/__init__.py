@@ -57,6 +57,7 @@ class MyStringExporter(pgn.StringExporter):
 class BoardOptim(chess.Board):
     def __init__(self, fen=chess.STARTING_FEN, *, chess960=False):
         super().__init__(fen, chess960=chess960)
+        self.illegal_moves = []
         self._fens = []
         self.comment_stack = []
         self.initial_fen = chess.STARTING_FEN
@@ -216,7 +217,7 @@ class BoardOptim(chess.Board):
             piece_symbol = chess.PIECE_SYMBOLS[piece_type + 1]
 
             fig.text(f, r, chess.UNICODE_PIECE_SYMBOLS[piece_symbol],
-                     color="white" if color == chess.WHITE else "black",
+                     color="white" if color == chess.WHITE else "brown",
                      alpha=0.8, ha="center", va="center")
 
         fig.set_title(caption)

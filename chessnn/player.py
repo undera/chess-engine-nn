@@ -20,17 +20,26 @@ class PlayerBase(object):
         # noinspection PyTypeChecker
         self.board = None
         self.moves_log = []
+        self.illegal_moves = []
 
-    def get_moves(self):
+    def get_moves(self, in_round):
         res = []
         for x in self.moves_log:
+            x.in_round = in_round
             res.append(x)
         self.moves_log.clear()
-        return res
 
-    def makes_move(self, in_round):
+        ill = []
+        for x in self.illegal_moves:
+            x.in_round = in_round
+            ill.append(x)
+        self.illegal_moves.clear()
+
+        return res, ill
+
+    def makes_move(self):
         move, geval, maps_predicted = self._choose_best_move()
-        moverec = self._get_moverec(move, geval, in_round)
+        moverec = self._get_moverec(move, geval)
         if is_debug() and maps_predicted:
             maps_actual, maps_predicted = self._maps_for_plot(maps_predicted, moverec)
             plots = ["attacked", "defended", "possib_from", "possib_to", "move_from", "move_to"]
@@ -52,14 +61,13 @@ class PlayerBase(object):
         maps_actual += self._decode_possible(maps_predicted[3])
         return maps_actual, maps_predicted
 
-    def _get_moverec(self, move, geval, in_round):
+    def _get_moverec(self, move, geval):
         bflip: BoardOptim = self.board if self.color == chess.WHITE else self.board.mirror()
         pos = bflip.get_position()
         moveflip = move if self.color == chess.WHITE else self._mirror_move(move)
         piece = self.board.piece_at(move.from_square)
         piece_type = piece.piece_type if piece else None
         moverec = MoveRecord(pos, moveflip, piece_type, self.board.fullmove_number, self.board.halfmove_clock)
-        moverec.from_round = in_round
         moverec.eval = geval
 
         moverec.attacked, moverec.defended = bflip.get_attacked_defended()
@@ -135,6 +143,7 @@ class NNPLayer(PlayerBase):
                 move = flipped
 
             if not self.board.is_legal(move):
+                self.illegal_moves.append(self._get_moverec(move, 0.0))
                 cnt += 1
                 continue
 

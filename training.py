@@ -24,9 +24,9 @@ def play_one_game(pwhite, pblack, rnd):
 
     try:
         while True:  # and board.fullmove_number < 150
-            if not pwhite.makes_move(rnd):
+            if not pwhite.makes_move():
                 break
-            if not pblack.makes_move(rnd):
+            if not pblack.makes_move():
                 break
 
             if is_debug():
@@ -97,7 +97,7 @@ class DataSet(object):
         else:
             logging.debug("no increase")
 
-        while len(self.dataset) > 50000:
+        while len(self.dataset) > 100000:
             mmin = min([x.from_round for x in self.dataset])
             logging.info("Removing things older than %s", mmin)
             for x in list(self.dataset):
@@ -121,13 +121,16 @@ def play_with_score(pwhite, pblack):
 
     rnd = max([x.from_round for x in winning.dataset + losing.dataset]) if winning.dataset else 0
     while True:
-        if not ((rnd+1) % 960):
+        if not ((rnd + 1) % 96):
             _retrain(winning, losing, draw)
 
         result = play_one_game(pwhite, pblack, rnd)
-        wmoves = pwhite.get_moves()
-        bmoves = pblack.get_moves()
+        wmoves, willegal = pwhite.get_moves(rnd)
+        bmoves, billegal = pblack.get_moves(rnd)
+        if willegal or billegal:
+            nn.train(willegal + billegal, 1)
         good_moves = _fill_sets(result, wmoves, bmoves, losing, winning, draw)
+
         if good_moves and False:
             moves = wmoves + bmoves
             random.shuffle(moves)
@@ -145,7 +148,7 @@ def _retrain(winning, losing, draw):
     if lst:
         nn.train(lst, 20)
         nn.save("nn.hdf5")
-        #raise ValueError()
+        # raise ValueError()
 
     # winning.dataset.clear()
     # losing.dataset.clear()

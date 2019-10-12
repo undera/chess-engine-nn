@@ -13,6 +13,9 @@ from tensorflow_core.python.keras.utils.vis_utils import plot_model
 from chessnn import MoveRecord, MOVES_MAP
 
 
+# os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
+
+
 class NN(object):
     _model: models.Model
 
@@ -45,7 +48,7 @@ class NN(object):
 
         logging.info("Starting to learn...")
         cbpath = '/tmp/tensorboard/%d' % (time.time() if epochs > 1 else 0)
-        cbs = [callbacks.TensorBoard(cbpath)]
+        cbs = [callbacks.TensorBoard(cbpath, write_graph=False, profile_batch=0)]
         res = self._model.fit(inputs, outputs,  # sample_weight=np.array(sample_weights),
                               validation_split=0.1 if (validation_data is None and epochs > 1) else 0.0, shuffle=True,
                               callbacks=cbs, verbose=2 if epochs > 1 else 0,
@@ -199,7 +202,7 @@ class NNChess(NN):
 
     def inference(self, data):
         inference = super().inference(data)
-        return [self._moves_iter(inference[0])] + inference[1:]
+        return [self._moves_iter(inference[0]), inference[1]] + [inference[2:] + [inference[0]]]
 
     def _moves_iter(self, scores):
         for idx, score in sorted(np.ndenumerate(scores), key=itemgetter(1), reverse=True):

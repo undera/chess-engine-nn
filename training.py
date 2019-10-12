@@ -128,7 +128,7 @@ def play_with_score(pwhite, pblack):
         wmoves = pwhite.get_moves()
         bmoves = pblack.get_moves()
         good_moves = _fill_sets(result, wmoves, bmoves, losing, winning, draw)
-        if good_moves and True:
+        if good_moves and False:
             moves = wmoves + bmoves
             random.shuffle(moves)
             nn.train(moves, 1)

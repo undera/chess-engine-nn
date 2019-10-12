@@ -118,6 +118,7 @@ class BoardOptim(chess.Board):
 
         # Count positions.
         switchyard = []
+        # noinspection PyUnresolvedReferences
         while self.move_stack:
             move = self.pop()
             switchyard.append(move)
@@ -204,31 +205,30 @@ class BoardOptim(chess.Board):
 
             cell = position[f][r]
             if any(cell[:6]):
-                color = chess.WHITE
-            elif any(cell[6:]):
                 color = chess.BLACK
+                piece_type = np.argmax(cell[:6])
+            elif any(cell[6:]):
+                color = chess.WHITE
+                piece_type = np.argmax(cell[6:])
             else:
                 continue
 
-            piece_type = np.argmax(position[int(color)][f][r])
             piece_symbol = chess.PIECE_SYMBOLS[piece_type + 1]
 
-            fig.text(r, f, chess.UNICODE_PIECE_SYMBOLS[piece_symbol],
+            fig.text(f, r, chess.UNICODE_PIECE_SYMBOLS[piece_symbol],
                      color="white" if color == chess.WHITE else "black",
                      alpha=0.8, ha="center", va="center")
 
         fig.set_title(caption)
 
-    def multiplot(self, memo, predicted, actual):
+    def multiplot(self, memo, pmap, predicted, actual):
         if not is_debug() or self.fullmove_number < 1:
             return
         pos = self.get_position()
 
         pyplot.close("all")
-        # fig = pyplot.figure()
-        fig, axes = pyplot.subplots(3, 2, figsize=(5, 10), gridspec_kw={'wspace': 0.01, 'hspace': 0.3})
+        fig, axes = pyplot.subplots(len(pmap), 2, figsize=(5, 10), gridspec_kw={'wspace': 0.01, 'hspace': 0.3})
 
-        pmap = ["attacked", "defended"]
         for idx, param in enumerate(pmap):
             self._plot(np.reshape(predicted[idx], (8, 8)), pos, axes[idx][0], "pre " + param)
             self._plot(np.reshape(actual[idx], (8, 8)), pos, axes[idx][1], "act " + param)

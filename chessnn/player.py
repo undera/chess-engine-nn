@@ -1,10 +1,9 @@
 import logging
 from abc import abstractmethod
-from typing import List, Union
+from typing import List
 
 import chess
 import numpy as np
-from chess import BaseBoard
 from chess.engine import SimpleEngine, INFO_SCORE
 
 from chessnn import MoveRecord, BoardOptim, nn, is_debug, MOVES_MAP
@@ -32,15 +31,26 @@ class PlayerBase(object):
     def makes_move(self, in_round):
         move, geval, maps_predicted = self._choose_best_move()
         moverec = self._get_moverec(move, geval, in_round)
-        maps_actual = (moverec.possible, moverec.attacked, moverec.defended)
         if is_debug() and maps_predicted:
-            self.board.multiplot("", maps_predicted[1:], maps_actual[1:])
+            maps_actual, maps_predicted = self._maps_for_plot(maps_predicted, moverec)
+            plots = ["attacked", "defended", "possib_from", "possib_to", "move_from", "move_to"]
+            self.board.multiplot("", plots, maps_predicted, maps_actual)
         self._log_move(moverec)
         self.board.push(move)
         if is_debug():
             logging.debug("%d. %r %.2f\n%s", self.board.fullmove_number, move.uci(), geval, self.board.unicode())
         not_over = move != chess.Move.null() and not self.board.is_game_over(claim_draw=False)
         return not_over
+
+    def _maps_for_plot(self, maps_predicted, moverec):
+        maps_predicted = (maps_predicted[1], maps_predicted[2]) \
+                         + self._decode_possible(maps_predicted[0]) + self._decode_possible(maps_predicted[3])
+        mm = np.full(len(MOVES_MAP), 0.0)
+        mm[moverec.get_move_num()] = 1.0
+        maps_actual = (moverec.attacked, moverec.defended) \
+                      + self._decode_possible(moverec.possible) + self._decode_possible(mm)
+        maps_actual += self._decode_possible(maps_predicted[3])
+        return maps_actual, maps_predicted
 
     def _get_moverec(self, move, geval, in_round):
         bflip: BoardOptim = self.board if self.color == chess.WHITE else self.board.mirror()
@@ -89,6 +99,16 @@ class PlayerBase(object):
     def _choose_best_move(self):
         pass
 
+    def _decode_possible(self, possible):
+        ffrom = np.full(64, 0.0)
+        tto = np.full(64, 0.0)
+        for idx, score in np.ndenumerate(possible):
+            f, t = MOVES_MAP[idx[0]]
+            ffrom[f] = max(ffrom[f], score)
+            tto[t] = max(tto[t], score)
+
+        return ffrom, tto
+
 
 class NNPLayer(PlayerBase):
     nn: nn.NN
@@ -104,8 +124,8 @@ class NNPLayer(PlayerBase):
         else:
             pos = self.board.mirror().get_position()
         moverec = MoveRecord(pos, chess.Move.null(), None, self.board.fullmove_number, self.board.halfmove_clock)
-        movegen, geval, possible, attacked, defended = self.nn.inference([moverec])
-        return self._scores_to_move(movegen), geval[0], (possible, attacked, defended)
+        movegen, geval, maps = self.nn.inference([moverec])
+        return self._scores_to_move(movegen), geval[0], maps
 
     def _scores_to_move(self, movegen):
         cnt = 0

@@ -224,7 +224,7 @@ class BoardOptim(chess.Board):
     def multiplot(self, memo, pmap, predicted, actual):
         if not is_debug() or self.fullmove_number < 1:
             return
-        pos = self.get_position()
+        pos = self.get_position() if self.turn else self.mirror().get_position()
 
         pyplot.close("all")
         fig, axes = pyplot.subplots(len(pmap), 2, figsize=(5, 10), gridspec_kw={'wspace': 0.01, 'hspace': 0.3})

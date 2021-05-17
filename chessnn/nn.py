@@ -7,13 +7,12 @@ from operator import itemgetter
 import chess
 import numpy as np
 from chess import PIECE_TYPES
-from tensorflow_core.python.keras import models, callbacks, layers
-from tensorflow_core.python.keras.utils.vis_utils import plot_model
+from keras import models, callbacks, layers, regularizers
+from keras.utils.vis_utils import plot_model
 
 from chessnn import MoveRecord, MOVES_MAP
 
-
-# os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 
 
 class NN(object):
@@ -21,11 +20,13 @@ class NN(object):
 
     def __init__(self, filename=None) -> None:
         super().__init__()
+        self.loaded = False
         self._train_acc_threshold = 0.9
         self._validate_acc_threshold = 0.9
         if filename and os.path.exists(filename):
             logging.info("Loading model from: %s", filename)
             self._model = models.load_model(filename)
+            self.loaded = True
         else:
             logging.info("Starting with clean model")
             self._model = self._get_nn()
@@ -43,6 +44,7 @@ class NN(object):
         return [x[0] for x in res]
 
     def train(self, data, epochs, validation_data=None):
+        self.loaded = True
         logging.info("Preparing training set...")
         inputs, outputs = self._data_to_training_set(data, False)
 

@@ -1,4 +1,3 @@
-
 # Chess Engine with Neural Network
 
 ## Motivation
@@ -208,3 +207,15 @@ Also, I changed structure of NN:
  ### 10 Sep 2019
  
  Interesting thought: I should not use softmax on moves output layer. Just because possible moves are independent and score for them should be just independent sigmoid. Which also means that lost games can again be included in training set. There are some questions on training moves like this, since we only can pass single good/bad move as input. Ideal solution would be having own loss function.
+
+ ### 18 Apr 2020
+
+This time, superfinal between Lc0 and Stockfish happens again, season #17. We're in self-isolation because of COVID19, it's a good time to revise my chess AI project.
+
+I was thinking a lot about it, and many experiments were not merged into main branch, because they're all have failed. I'm ready to give up on my initial idea: build a NN that would "say" correct move. I realize that much more advanced reinforcement learning technique would be needed to achieve that.
+
+Instead, I will try to do a "tree search with just 1 level", to pick the right move. It assumes that central part is NN position evaluator that is trusted. It's a sort of "optimist" approach where we believe that current eval is very smart and no deep tree search is needed. 
+
+...
+
+After some training against SF, I see a problem of 1-ply depth: if a move actually leads to bad position (taking opponents' move into account), then all we have is choice from very bad moves. 

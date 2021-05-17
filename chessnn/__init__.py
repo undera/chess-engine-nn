@@ -4,6 +4,7 @@ import json
 import logging
 import sys
 from collections import Counter
+from typing import List
 
 import chess
 import numpy as np
@@ -55,6 +56,8 @@ class MyStringExporter(pgn.StringExporter):
 
 
 class BoardOptim(chess.Board):
+    move_stack: List[chess.Move]
+
     def __init__(self, fen=chess.STARTING_FEN, *, chess960=False):
         super().__init__(fen, chess960=chess960)
         self.illegal_moves = []

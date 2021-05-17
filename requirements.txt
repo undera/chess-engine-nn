@@ -6,4 +6,4 @@ tensorflow
 chess
 matplotlib
 numpy
-python-chess
+chess

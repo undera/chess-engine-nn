@@ -26,6 +26,7 @@ def play_one_game(pwhite, pblack, rnd):
         while True:  # and board.fullmove_number < 150
             if not pwhite.makes_move():
                 break
+
             if not pblack.makes_move():
                 break
 
@@ -42,22 +43,8 @@ def play_one_game(pwhite, pblack, rnd):
 
     result = board.result(claim_draw=True)
 
-    badp = 0
-    badc = 0
-    if isinstance(pwhite, NNPLayer):
-        badp += pwhite.invalid_moves
-        pwhite.invalid_moves = 0
-        badc += 1
-
-    if isinstance(pblack, NNPLayer):
-        badp += pblack.invalid_moves
-        pblack.invalid_moves = 0
-        badc += 1
-
-    badp = badp / badc
-
-    logging.info("Game #%d/%d:\t%s by %s,\t%d moves, %d%% bad", rnd, rnd % 960, result, board.explain(),
-                 board.fullmove_number, badp)
+    logging.info("Game #%d/%d:\t%s by %s,\t%d moves", rnd, rnd % 960, result, board.explain(),
+                 board.fullmove_number)
 
     return result
 
@@ -125,16 +112,27 @@ def play_with_score(pwhite, pblack):
             _retrain(winning, losing, draw)
 
         result = play_one_game(pwhite, pblack, rnd)
-        wmoves, willegal = pwhite.get_moves(rnd)
-        bmoves, billegal = pblack.get_moves(rnd)
-        if willegal or billegal:
-            nn.train(willegal + billegal, 1)
-        good_moves = _fill_sets(result, wmoves, bmoves, losing, winning, draw)
+        wmoves = pwhite.get_moves(rnd)
+        bmoves = pblack.get_moves(rnd)
 
-        if good_moves and False:
-            moves = wmoves + bmoves
-            random.shuffle(moves)
-            nn.train(moves, 1)
+        if result == '1-0':
+            for x, move in enumerate(wmoves):
+                move.eval = 0.5 + 0.5 * x / len(wmoves)
+            for x, move in enumerate(bmoves):
+                move.eval = 0.5 - 0.5 * x / len(bmoves)
+        elif result == '0-1':
+            for x, move in enumerate(wmoves):
+                move.eval = 0.5 - 0.5 * x / len(wmoves)
+            for x, move in enumerate(bmoves):
+                move.eval = 0.5 + 0.5 * x / len(bmoves)
+        else:
+            for x, move in enumerate(wmoves):
+                move.eval = 0.5 - 0.25 * x / len(wmoves)
+            for x, move in enumerate(bmoves):
+                move.eval = 0.5 - 0.25 * x / len(bmoves)
+
+        nn.train(wmoves + bmoves, 1)
+
         rnd += 1
 
 
@@ -185,7 +183,8 @@ def _fill_sets(result, wmoves, bmoves, losing, winning, draw):
 
 if __name__ == "__main__":
     sys.setrecursionlimit(10000)
-    logging.basicConfig(level=logging.DEBUG if is_debug() else logging.INFO)
+    _LOG_FORMAT = '[%(relativeCreated)d %(name)s %(levelname)s] %(message)s'
+    logging.basicConfig(level=logging.DEBUG if is_debug() else logging.INFO, format=_LOG_FORMAT)
 
     # if os.path.exists("nn.hdf5"):
     #    os.remove("nn.hdf5")
@@ -193,7 +192,7 @@ if __name__ == "__main__":
     nn = NNChess("nn.hdf5")
     white = NNPLayer("Lisa", WHITE, nn)
     black = NNPLayer("Karen", BLACK, nn)
-    black = Stockfish(BLACK)
+    # black = Stockfish(BLACK)
 
     try:
         play_with_score(white, black)

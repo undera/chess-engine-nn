@@ -219,3 +219,7 @@ Instead, I will try to do a "tree search with just 1 level", to pick the right m
 ...
 
 After some training against SF, I see a problem of 1-ply depth: if a move actually leads to bad position (taking opponents' move into account), then all we have is choice from very bad moves. 
+
+### 1 Dec 2021
+
+Nepo plays with Carlsen for the Chess Crown (https://lichess.org/broadcast/world-chess-championship-2021/game-5/H8H4enOL). I want to try exercise on this project again, using my 3060Ti and the approach of 1-level deep eval. The idea: for each position, we calculate score for each possible next position. The top score is the move.

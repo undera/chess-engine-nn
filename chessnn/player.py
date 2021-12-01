@@ -1,4 +1,5 @@
 import logging
+import random
 from abc import abstractmethod
 from typing import List
 
@@ -20,7 +21,6 @@ class PlayerBase(object):
         # noinspection PyTypeChecker
         self.board = None
         self.moves_log = []
-        self.illegal_moves = []
 
     def get_moves(self, in_round):
         res = []
@@ -29,21 +29,11 @@ class PlayerBase(object):
             res.append(x)
         self.moves_log.clear()
 
-        ill = []
-        for x in self.illegal_moves:
-            x.in_round = in_round
-            ill.append(x)
-        self.illegal_moves.clear()
-
-        return res, ill
+        return res
 
     def makes_move(self):
-        move, geval, maps_predicted = self._choose_best_move()
+        move, geval = self._choose_best_move()
         moverec = self._get_moverec(move, geval)
-        if is_debug() and maps_predicted:
-            maps_actual, maps_predicted = self._maps_for_plot(maps_predicted, moverec)
-            plots = ["attacked", "defended", "possib_from", "possib_to", "move_from", "move_to"]
-            self.board.multiplot("", plots, maps_predicted, maps_actual)
         self._log_move(moverec)
         self.board.push(move)
         if is_debug():
@@ -124,36 +114,37 @@ class NNPLayer(PlayerBase):
     def __init__(self, name, color, net) -> None:
         super().__init__(name, color)
         self.nn = net
-        self.invalid_moves = 0
 
     def _choose_best_move(self):
+
         if self.color == chess.WHITE:
-            pos = self.board.get_position()
+            board = self.board
         else:
-            pos = self.board.mirror().get_position()
-        moverec = MoveRecord(pos, chess.Move.null(), None, self.board.fullmove_number, self.board.halfmove_clock)
-        movegen, geval, maps = self.nn.inference([moverec])
-        return self._scores_to_move(movegen), geval[0], maps
+            board = self.board.mirror()
 
-    def _scores_to_move(self, movegen):
-        cnt = 0
-        for move in movegen:
-            if self.color == chess.BLACK:
-                flipped = self._mirror_move(move)
-                move = flipped
+        pos = board.get_position()
 
-            if not self.board.is_legal(move):
-                self.illegal_moves.append(self._get_moverec(move, 0.0))
-                cnt += 1
+        moves = []
+        for move in board.generate_legal_moves():
+            if not board.is_legal(move):
+                logging.debug("Illegal: %s", move)
                 continue
 
-            break
-        else:
-            logging.warning("No valid moves")
-            move = chess.Move.null()
-        logging.debug("Invalid moves skipped: %s", cnt)
-        self.invalid_moves += cnt
-        return move
+            moverec = MoveRecord(pos, move, None, board.fullmove_number, board.halfmove_clock)
+
+            geval, = self.nn.inference([moverec])
+            moves.append((geval, move))
+
+        if not moves:
+            assert 1
+
+        random.shuffle(moves)
+        moves.sort(key=lambda x: x[0])
+        geval, move = moves[-1]
+        if self.color == chess.BLACK:
+            move = self._mirror_move(move)
+
+        return move, geval
 
 
 class Stockfish(PlayerBase):
@@ -172,4 +163,4 @@ class Stockfish(PlayerBase):
         else:
             forced_eval = -1 / abs(result.info['score'].relative.cp) + 1
 
-        return result.move, forced_eval, None
+        return result.move, forced_eval

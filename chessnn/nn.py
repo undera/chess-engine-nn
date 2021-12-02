@@ -6,13 +6,17 @@ from operator import itemgetter
 
 import chess
 import numpy as np
+import tensorflow
 from chess import PIECE_TYPES
-from keras import models, callbacks, layers, regularizers
+from keras import models, callbacks, layers
 from keras.utils.vis_utils import plot_model
 
 from chessnn import MoveRecord, MOVES_MAP
 
-os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
+tensorflow.compat.v1.disable_eager_execution()
+
+
+# os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 
 
 class NN(object):
@@ -45,14 +49,14 @@ class NN(object):
 
     def train(self, data, epochs, validation_data=None):
         self.loaded = True
-        logging.info("Preparing training set...")
+        logging.info("Preparing training set of %s...", len(data))
         inputs, outputs = self._data_to_training_set(data, False)
 
         logging.info("Starting to learn...")
         cbpath = '/tmp/tensorboard/%d' % (time.time() if epochs > 1 else 0)
         cbs = [callbacks.TensorBoard(cbpath, write_graph=False, profile_batch=0)]
         res = self._model.fit(inputs, outputs,  # sample_weight=np.array(sample_weights),
-                              validation_split=0.1 if (validation_data is None and epochs > 1) else 0.0, shuffle=True,
+                              validation_split=0.1 if (validation_data is None) else 0.0, shuffle=True,
                               callbacks=cbs, verbose=2 if epochs > 1 else 0,
                               epochs=epochs)
         logging.info("Trained: %s", {x: y[-1] for x, y in res.history.items()})
@@ -88,16 +92,15 @@ class NNChess(NN):
     def _get_nn(self):
         pos_shape = (8, 8, len(PIECE_TYPES) * 2)
         position = layers.Input(shape=pos_shape, name="position")
-        pos_analyzed = self.__nn_conv(position)
+        pos_analyzed = self.__nn_residual(position)
 
         out_eval = layers.Dense(1, activation="sigmoid", name="eval")(pos_analyzed)
 
         model = models.Model(inputs=[position],
                              outputs=[out_eval])
         model.compile(optimizer=optimizer,
-                      loss=["binary_crossentropy", ],
-                      loss_weights=[1.0, ],
-                      metrics=["binary_accuracy"])
+                      loss="mse",
+                      metrics=["accuracy"])
         return model
 
     def __nn_simple(self, position):

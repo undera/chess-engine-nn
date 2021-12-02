@@ -7,7 +7,7 @@ import chess
 import numpy as np
 from chess.engine import SimpleEngine, INFO_SCORE
 
-from chessnn import MoveRecord, BoardOptim, nn, is_debug, MOVES_MAP
+from chessnn import MoveRecord, BoardOptim, nn, is_debug, MOVES_MAP, SYZYGY
 
 
 class PlayerBase(object):
@@ -39,6 +39,19 @@ class PlayerBase(object):
         if is_debug():
             logging.debug("%d. %r %.2f\n%s", self.board.fullmove_number, move.uci(), geval, self.board.unicode())
         not_over = move != chess.Move.null() and not self.board.is_game_over(claim_draw=False)
+
+        if len(self.board.piece_map()) <= 5:
+            known = SYZYGY.get_wdl(self.board)
+            not_over = False
+            if known is not None:
+                logging.debug("SyzygyDB: %s", known)
+                if known > 0:
+                    self.board.forced_result = chess.Outcome(chess.Termination.VARIANT_WIN, self.board.turn)
+                elif known < 0:
+                    self.board.forced_result = chess.Outcome(chess.Termination.VARIANT_LOSS, self.board.turn)
+                else:
+                    self.board.forced_result = chess.Outcome(chess.Termination.VARIANT_DRAW, self.board.turn)
+
         return not_over
 
     def _maps_for_plot(self, maps_predicted, moverec):
@@ -60,8 +73,8 @@ class PlayerBase(object):
         moverec = MoveRecord(pos, moveflip, piece_type, self.board.fullmove_number, self.board.halfmove_clock)
         moverec.eval = geval
 
-        moverec.attacked, moverec.defended = bflip.get_attacked_defended()
-        moverec.possible = bflip.get_possible_moves()
+        # moverec.attacked, moverec.defended = bflip.get_attacked_defended()
+        # moverec.possible = bflip.get_possible_moves()
 
         return moverec
 
@@ -116,7 +129,6 @@ class NNPLayer(PlayerBase):
         self.nn = net
 
     def _choose_best_move(self):
-
         if self.color == chess.WHITE:
             board = self.board
         else:
@@ -132,11 +144,8 @@ class NNPLayer(PlayerBase):
 
             moverec = MoveRecord(pos, move, None, board.fullmove_number, board.halfmove_clock)
 
-            geval, = self.nn.inference([moverec])
-            moves.append((geval, move))
-
-        if not moves:
-            assert 1
+            moverec.eval, = self.nn.inference([moverec])
+            moves.append((moverec.eval, move))
 
         random.shuffle(moves)
         moves.sort(key=lambda x: x[0])

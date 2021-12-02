@@ -2,13 +2,15 @@ import collections
 import copy
 import json
 import logging
+import os.path
 import sys
 from collections import Counter
-from typing import List
+from typing import List, Optional
 
 import chess
 import numpy as np
-from chess import pgn, SquareSet, SQUARES
+from chess import pgn, SquareSet, SQUARES, Outcome
+from chess.syzygy import open_tablebase
 from matplotlib import pyplot
 
 mpl_logger = logging.getLogger('matplotlib')
@@ -60,10 +62,16 @@ class BoardOptim(chess.Board):
 
     def __init__(self, fen=chess.STARTING_FEN, *, chess960=False):
         super().__init__(fen, chess960=chess960)
+        self.forced_result = None
         self.illegal_moves = []
         self._fens = []
         self.comment_stack = []
         self.initial_fen = chess.STARTING_FEN
+
+    def outcome(self, *, claim_draw: bool = False) -> Optional[Outcome]:
+        if self.forced_result:
+            return self.forced_result
+        return super().outcome(claim_draw=claim_draw)
 
     def set_chess960_pos(self, sharnagl):
         super().set_chess960_pos(sharnagl)
@@ -86,7 +94,9 @@ class BoardOptim(chess.Board):
             out.write(pgns)
 
     def explain(self):
-        if self.is_checkmate():
+        if self.forced_result:
+            comm = "SyzygyDB"
+        elif self.is_checkmate():
             comm = "checkmate"
         elif self.can_claim_fifty_moves():
             comm = "50 moves"
@@ -255,6 +265,7 @@ class MoveRecord(object):
 
     def __init__(self, position, move, piece, move_number, fifty_progress) -> None:
         super().__init__()
+        self.hash = None
         # TODO: add en passant square info
         # TODO: add castling rights info
         self.possible = None
@@ -274,6 +285,11 @@ class MoveRecord(object):
         self.attacked = None
         self.defended = None
 
+    def __hash__(self) -> int:
+        if self.hash is None:
+            self.hash = hash(as_tuple(self.position.tolist()))
+        return self.hash
+
     def __str__(self) -> str:
         return json.dumps({x: y for x, y in self.__dict__.items() if x not in ('forced_eval', 'kpis')})
 
@@ -288,6 +304,13 @@ class MoveRecord(object):
             return -1  # null move
 
         return MOVES_MAP.index((self.from_square, self.to_square))
+
+
+def as_tuple(x):
+    if isinstance(x, list):
+        return tuple(as_tuple(y) for y in x)
+    else:
+        return x
 
 
 def is_debug():
@@ -315,3 +338,5 @@ def _possible_moves():
 
 
 MOVES_MAP = _possible_moves()
+
+SYZYGY = open_tablebase(os.path.join(os.path.dirname(__file__), "..", "syzygy", "3-4-5"), load_dtz=False)

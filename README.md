@@ -212,14 +212,27 @@ Also, I changed structure of NN:
 
 This time, superfinal between Lc0 and Stockfish happens again, season #17. We're in self-isolation because of COVID19, it's a good time to revise my chess AI project.
 
-I was thinking a lot about it, and many experiments were not merged into main branch, because they're all have failed. I'm ready to give up on my initial idea: build a NN that would "say" correct move. I realize that much more advanced reinforcement learning technique would be needed to achieve that.
+I was thinking a lot about it, and many experiments were not merged into main branch, because they're all have failed.
+I'm ready to give up on my initial idea: build a NN that would "say" correct move. I realize that much more advanced
+reinforcement learning technique would be needed to achieve that.
 
-Instead, I will try to do a "tree search with just 1 level", to pick the right move. It assumes that central part is NN position evaluator that is trusted. It's a sort of "optimist" approach where we believe that current eval is very smart and no deep tree search is needed. 
+Instead, I will try to do a "tree search with just 1 level", to pick the right move. It assumes that central part is NN
+position evaluator that is trusted. It's a sort of "optimist" approach where we believe that current eval is very smart
+and no deep tree search is needed.
 
 ...
 
-After some training against SF, I see a problem of 1-ply depth: if a move actually leads to bad position (taking opponents' move into account), then all we have is choice from very bad moves. 
+After some training against SF, I see a problem of 1-ply depth: if a move actually leads to bad position (taking
+opponents' move into account), then all we have is choice from very bad moves.
 
 ### 1 Dec 2021
 
-Nepo plays with Carlsen for the Chess Crown (https://lichess.org/broadcast/world-chess-championship-2021/game-5/H8H4enOL). I want to try exercise on this project again, using my 3060Ti and the approach of 1-level deep eval. The idea: for each position, we calculate score for each possible next position. The top score is the move.
+Nepo plays with Carlsen for the Chess
+Crown (https://lichess.org/broadcast/world-chess-championship-2021/game-5/H8H4enOL). I want to try exercise on this
+project again, using my 3060Ti and the approach of 1-level deep eval. The idea: for each position, we calculate score
+for each possible next position. The top score is the move. I'm getting more modest, just want to get a model that makes not totally random moves.
+
+I put the current version to run overnight. In the morning it got to game #960, to try all possible starting positions.
+Ran for 15 hours. It spends a lot of time making long endgames, so I'll add SyzygyDB checks for 3/4/5-piece endings.
+
+It seems that with the approach of eval it is a _regression_ task.

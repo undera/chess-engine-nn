@@ -3,10 +3,11 @@ import os
 import pickle
 import random
 import sys
+from typing import List, Any
 
 from chess import WHITE, BLACK, Move
 
-from chessnn import BoardOptim, is_debug
+from chessnn import BoardOptim, is_debug, MoveRecord
 from chessnn.nn import NNChess
 from chessnn.player import NNPLayer, Stockfish
 
@@ -50,6 +51,8 @@ def play_one_game(pwhite, pblack, rnd):
 
 
 class DataSet(object):
+    dataset: List[MoveRecord]
+
     def __init__(self, fname) -> None:
         super().__init__()
         self.fname = fname
@@ -69,6 +72,8 @@ class DataSet(object):
             with open(self.fname, 'rb') as fhd:
                 loaded = pickle.load(fhd)
                 self.dataset.extend(loaded)
+
+        logging.info("Loaded from %s: %s", self.fname, len(self.dataset))
 
     def update(self, moves):
         lprev = len(self.dataset)
@@ -100,16 +105,17 @@ def set_to_file(draw, param):
 
 
 def play_with_score(pwhite, pblack):
-    winning = DataSet("winning.pkl")
-    winning.load_moves()
-    losing = DataSet("losing.pkl")
-    losing.load_moves()
-    draw = DataSet("losing.pkl")
+    results = DataSet("results.pkl")
+    results.load_moves()
 
-    rnd = max([x.from_round for x in winning.dataset + losing.dataset]) if winning.dataset else 0
+    if results.dataset:
+        nn.train(results.dataset, 20)
+
+    rnd = max([x.from_round for x in results.dataset]) if results.dataset else 0
     while True:
         if not ((rnd + 1) % 96):
-            _retrain(winning, losing, draw)
+            nn.train(results.dataset, 20)
+            nn.save("nn.hdf5")
 
         result = play_one_game(pwhite, pblack, rnd)
         wmoves = pwhite.get_moves(rnd)
@@ -120,18 +126,26 @@ def play_with_score(pwhite, pblack):
                 move.eval = 0.5 + 0.5 * x / len(wmoves)
             for x, move in enumerate(bmoves):
                 move.eval = 0.5 - 0.5 * x / len(bmoves)
+
+            results.update(wmoves)
+            results.update(bmoves)
         elif result == '0-1':
             for x, move in enumerate(wmoves):
                 move.eval = 0.5 - 0.5 * x / len(wmoves)
             for x, move in enumerate(bmoves):
                 move.eval = 0.5 + 0.5 * x / len(bmoves)
+
+            results.update(wmoves)
+            results.update(bmoves)
         else:
             for x, move in enumerate(wmoves):
                 move.eval = 0.5 - 0.25 * x / len(wmoves)
             for x, move in enumerate(bmoves):
                 move.eval = 0.5 - 0.25 * x / len(bmoves)
 
-        nn.train(wmoves + bmoves, 1)
+        results.dump_moves()
+
+        nn.train(wmoves + bmoves + results.dataset, 1)
 
         rnd += 1
 
@@ -151,34 +165,6 @@ def _retrain(winning, losing, draw):
     # winning.dataset.clear()
     # losing.dataset.clear()
     # draw.dataset.clear()
-
-
-def _fill_sets(result, wmoves, bmoves, losing, winning, draw):
-    if result == '1-0':
-        # playsound.playsound('/usr/share/games/xboard/sounds/ding.wav')
-        for x, move in enumerate(wmoves):
-            move.eval = 1.0
-        for x, move in enumerate(bmoves):
-            move.eval = 0.0
-        winning.update(wmoves)
-        losing.update(bmoves)
-        return wmoves
-    elif result == '0-1':
-        for x, move in enumerate(bmoves):
-            move.eval = 1.0
-        for x, move in enumerate(wmoves):
-            move.eval = 0.0
-        winning.update(bmoves)
-        losing.update(wmoves)
-        return bmoves
-    else:
-        for x, move in enumerate(bmoves):
-            move.eval = 0.5
-        for x, move in enumerate(wmoves):
-            move.eval = 0.5
-        # draw.update(wmoves)
-        # draw.update(bmoves)
-        return []
 
 
 if __name__ == "__main__":

@@ -230,9 +230,11 @@ opponents' move into account), then all we have is choice from very bad moves.
 Nepo plays with Carlsen for the Chess
 Crown (https://lichess.org/broadcast/world-chess-championship-2021/game-5/H8H4enOL). I want to try exercise on this
 project again, using my 3060Ti and the approach of 1-level deep eval. The idea: for each position, we calculate score
-for each possible next position. The top score is the move. I'm getting more modest, just want to get a model that makes not totally random moves.
+for each possible next position. The top score is the move. I'm getting more modest, just want to get a model that makes not totally random moves, for example, does not miss capturing the queen for free.
 
 I put the current version to run overnight. In the morning it got to game #960, to try all possible starting positions.
 Ran for 15 hours. It spends a lot of time making long endgames, so I'll add SyzygyDB checks for 3/4/5-piece endings.
 
 It seems that with the approach of eval it is a _regression_ task.
+
+At the end of this exercise, I see that quality of games does not grow much, even training against SF. Maybe the NN structure could be somehow improved to provide better position analysis capacity.

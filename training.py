@@ -90,11 +90,9 @@ class DataSet(object):
             logging.debug("no increase")
 
         while len(self.dataset) > 100000:
-            mmin = min([x.from_round for x in self.dataset])
+            mmin = min(x.from_round for x in self.dataset)
             logging.info("Removing things older than %s", mmin)
-            for x in list(self.dataset):
-                if x.from_round <= mmin:
-                    self.dataset.remove(x)
+            self.dataset = [x for x in self.dataset if x.from_round > mmin]
 
 
 def set_to_file(draw, param):
@@ -108,13 +106,14 @@ def play_with_score(pwhite, pblack):
     results = DataSet("results.pkl")
     results.load_moves()
 
-    if results.dataset:
-        nn.train(results.dataset, 20)
+    # if results.dataset:
+    #    nn.train(results.dataset, 20)
 
     rnd = max([x.from_round for x in results.dataset]) if results.dataset else 0
     while True:
         if not ((rnd + 1) % 96):
-            nn.train(results.dataset, 20)
+            results.dump_moves()
+            nn.train(results.dataset, 10)
             nn.save("nn.hdf5")
 
         result = play_one_game(pwhite, pblack, rnd)
@@ -124,28 +123,32 @@ def play_with_score(pwhite, pblack):
         if result == '1-0':
             for x, move in enumerate(wmoves):
                 move.eval = 0.5 + 0.5 * x / len(wmoves)
+                move.from_round = rnd
             for x, move in enumerate(bmoves):
                 move.eval = 0.5 - 0.5 * x / len(bmoves)
+                move.from_round = rnd
 
             results.update(wmoves)
             results.update(bmoves)
         elif result == '0-1':
             for x, move in enumerate(wmoves):
                 move.eval = 0.5 - 0.5 * x / len(wmoves)
+                move.from_round = rnd
             for x, move in enumerate(bmoves):
                 move.eval = 0.5 + 0.5 * x / len(bmoves)
+                move.from_round = rnd
 
             results.update(wmoves)
             results.update(bmoves)
         else:
             for x, move in enumerate(wmoves):
                 move.eval = 0.5 - 0.25 * x / len(wmoves)
+                move.from_round = rnd
             for x, move in enumerate(bmoves):
                 move.eval = 0.5 - 0.25 * x / len(bmoves)
+                move.from_round = rnd
 
-        results.dump_moves()
-
-        nn.train(wmoves + bmoves + results.dataset, 1)
+        nn.train(wmoves + bmoves, 1)
 
         rnd += 1
 

@@ -8,13 +8,13 @@ import chess
 import numpy as np
 import tensorflow
 from chess import PIECE_TYPES
-from keras import models, callbacks, layers
+from keras import models, callbacks, layers, regularizers
 from keras.utils.vis_utils import plot_model
 
 from chessnn import MoveRecord, MOVES_MAP
 
 tensorflow.compat.v1.disable_eager_execution()
-
+assert regularizers
 
 # os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 
@@ -56,7 +56,7 @@ class NN(object):
         cbpath = '/tmp/tensorboard/%d' % (time.time() if epochs > 1 else 0)
         cbs = [callbacks.TensorBoard(cbpath, write_graph=False, profile_batch=0)]
         res = self._model.fit(inputs, outputs,  # sample_weight=np.array(sample_weights),
-                              validation_split=0.1 if (validation_data is None) else 0.0, shuffle=True,
+                              validation_split=0.1 if (validation_data is None and epochs > 1) else 0.0, shuffle=True,
                               callbacks=cbs, verbose=2 if epochs > 1 else 0,
                               epochs=epochs)
         logging.info("Trained: %s", {x: y[-1] for x, y in res.history.items()})
@@ -83,16 +83,21 @@ class NN(object):
         pass
 
 
-reg = None  # regularizers.l2(0.001)
+reg = regularizers.l2(0.001)
 activ_hidden = "sigmoid"  # linear relu elu sigmoid tanh softmax
-optimizer = "rmsprop"  # sgd rmsprop adagrad adadelta adamax adam nadam
+optimizer = "adam"  # sgd rmsprop adagrad adadelta adamax adam nadam
 
 
 class NNChess(NN):
     def _get_nn(self):
         pos_shape = (8, 8, len(PIECE_TYPES) * 2)
         position = layers.Input(shape=pos_shape, name="position")
-        pos_analyzed = self.__nn_residual(position)
+        # pos_analyzed1 = self.__nn_simple(position)
+        pos_analyzed2 = self.__nn_conv(position)
+        pos_analyzed3 = self.__nn_residual(position)
+
+        pos_analyzed = layers.concatenate([pos_analyzed2, pos_analyzed3])
+        pos_analyzed = layers.Dense(64, activation=activ_hidden, kernel_regularizer=reg)(pos_analyzed)
 
         out_eval = layers.Dense(1, activation="sigmoid", name="eval")(pos_analyzed)
 
@@ -100,7 +105,7 @@ class NNChess(NN):
                              outputs=[out_eval])
         model.compile(optimizer=optimizer,
                       loss="mse",
-                      metrics=["accuracy"])
+                      metrics=[])
         return model
 
     def __nn_simple(self, position):

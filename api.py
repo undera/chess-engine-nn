@@ -1,11 +1,12 @@
 import logging
+import random
 from http.server import HTTPServer, SimpleHTTPRequestHandler
 from queue import Queue
 from threading import Thread
 
 from chess import WHITE, BLACK
 
-from chessnn.nn import NN
+from chessnn.nn import NN, NNChess
 from chessnn.player import NNPLayer
 from training import play_one_game
 
@@ -53,7 +54,7 @@ class ChessAPIHandler(SimpleHTTPRequestHandler):
 class PlayerAPI(NNPLayer):
 
     def __init__(self, color) -> None:
-        super().__init__(color, None)
+        super().__init__("API", color, None)
         server_address = ('', 8090)
         self.httpd = HTTPServer(server_address, ChessAPIHandler)
         self.iqueue = Queue()
@@ -71,18 +72,19 @@ class PlayerAPI(NNPLayer):
     def _choose_best_move(self):
         if self.board.move_stack:
             self.oqueue.put(self.board.move_stack[-1])
-        logging.debug("Getting next move...")
+        logging.debug("Getting next move from user...")
         move_str = self.iqueue.get(True)
-        return self.board.parse_san(move_str)
+        return self.board.parse_san(move_str), 0.5
 
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.DEBUG)
 
     white = PlayerAPI(WHITE)
-    black = NNPLayer(BLACK, NN(True, "nn.hdf5"))
+    black = NNPLayer("Karen", BLACK, NNChess("nn.hdf5"))
 
     cnt = 1
     while True:
-        play_one_game(white, black, cnt)
+        rnd = random.randint(0, 960)
+        play_one_game(white, black, 0)
         cnt += 1

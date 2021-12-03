@@ -1,5 +1,7 @@
 # Chess Engine with Neural Network
 
+![](demo.gif)
+
 ## Motivation
 
 It is inspired by TCEC Season 14 - Superfinal, where Leela was trying to fry Stockfish. [Stockfish](https://stockfishchess.org/) is chess engine that dominates among publicly available engines since 2014. Stockfish uses classic approach of chess engines, where everything is determined by algorithms built into engine. [Lc0 aka Leela Chess Zero](http://lczero.org/) is different, since it uses some sort of trainable neural network inside, as well as appealing human-like nickname. Mid-series, Leela managed to take the lead by 1-2 points, and there is a chance NN-powered chess engine will finish heuristics-based dominance (78/100 games played so far).
@@ -237,4 +239,4 @@ Ran for 15 hours. It spends a lot of time making long endgames, so I'll add Syzy
 
 It seems that with the approach of eval it is a _regression_ task.
 
-At the end of this exercise, I see that quality of games does not grow much, even training against SF. Maybe the NN structure could be somehow improved to provide better position analysis capacity.
+At the end of this exercise, I see that quality of games does not grow much, even training against SF. Maybe the NN structure could be somehow improved to provide better position analysis capacity. I still miss good point on measuring the quality of games, what's the KPI. It's not NN loss, as far as I see.

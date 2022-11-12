@@ -240,3 +240,26 @@ Ran for 15 hours. It spends a lot of time making long endgames, so I'll add Syzy
 It seems that with the approach of eval it is a _regression_ task.
 
 At the end of this exercise, I see that quality of games does not grow much, even training against SF. Maybe the NN structure could be somehow improved to provide better position analysis capacity. I still miss good point on measuring the quality of games, what's the KPI. It's not NN loss, as far as I see.
+
+### 11 Nov 2022
+
+I wrote somewhere above 'bout COVID times... Well, I knew not that it can be that worse. Now I'm a voluntary exile and life won't be the same. Still, I watch TCEC season 23 superfinal and Leela loses it to SF miserably. 
+
+My mood is slightly better, and somehow I feel playing again with my chess program, to vent out my itchy engineering gland.
+
+I understand I would repeat something from above, but my thoughts are coming again to some statements:
+
+- I don't want the program to be the _search_ program that gives score to a position. Instead, I want it to be a prediction program, that would suggest the next move and _all_ logic should emerge inside NN, through its training.
+- The idea of input position => NN body => 1792 possible moves output
+- output layer should be `softmax`-activated
+- `categorical_crossentropy` should be a loss function
+
+I still believe that NN should learn at least basic valid moves rules. That will be the goal of the excercise.
+
+...
+
+Checked again all my code for some huge stupid misuse of NN - it all looks correct according to my expectations.
+
+Observations:
+- for body activation relu is good and linear is even better 
+- rmsprop optimizer does not work for dense net

@@ -10,7 +10,7 @@ from typing import List, Optional
 import chess
 import numpy as np
 from chess import pgn, SquareSet, SQUARES, Outcome
-from chess.syzygy import open_tablebase
+from chess.syzygy import open_tablebase, Tablebase
 from matplotlib import pyplot
 
 mpl_logger = logging.getLogger('matplotlib')
@@ -263,7 +263,7 @@ class BoardOptim(chess.Board):
 class MoveRecord(object):
     piece: chess.Piece
 
-    def __init__(self, position, move, piece, move_number, fifty_progress) -> None:
+    def __init__(self, position, move: chess.Move, piece, move_number, fifty_progress) -> None:
         super().__init__()
         self.hash = None
         # TODO: add en passant square info
@@ -305,6 +305,9 @@ class MoveRecord(object):
 
         return MOVES_MAP.index((self.from_square, self.to_square))
 
+    def get_move(self):
+        return chess.Move(self.from_square, self.to_square)
+
 
 def as_tuple(x):
     if isinstance(x, list):
@@ -314,7 +317,7 @@ def as_tuple(x):
 
 
 def is_debug():
-    return 'pydevd' in sys.modules
+    return 'pydevd' in sys.modules or os.getenv("DEBUG")
 
 
 def _possible_moves():
@@ -339,4 +342,7 @@ def _possible_moves():
 
 MOVES_MAP = _possible_moves()
 
-SYZYGY = open_tablebase(os.path.join(os.path.dirname(__file__), "..", "syzygy", "3-4-5"), load_dtz=False)
+try:
+    SYZYGY = open_tablebase(os.path.join(os.path.dirname(__file__), "..", "syzygy", "3-4-5"), load_dtz=False)
+except BaseException:
+    SYZYGY = Tablebase()

@@ -46,7 +46,7 @@ class NN(object):
                 fp.write(js)
 
             with open(self._store_prefix + ".txt", 'w') as fp:
-                self._model.summary(print_fn=lambda x: fp.write(x+"\n"))
+                self._model.summary(print_fn=lambda x: fp.write(x + "\n"))
 
             plot_model(self._model, to_file=self._store_prefix + ".png", show_shapes=True)
 
@@ -105,7 +105,7 @@ class NNChess(NN):
         pos_shape = (8, 8, len(PIECE_TYPES) * 2)
         position = layers.Input(shape=pos_shape, name="position")
         pos_analyzed = position
-        pos_analyzed = self.__nn_conv(position)
+        pos_analyzed = self.__nn_conv(pos_analyzed)
         # pos_analyzed = self.__nn_residual(pos_analyzed)
         # pos_analyzed = self.__nn_simple(pos_analyzed)
 
@@ -121,10 +121,10 @@ class NNChess(NN):
         return model
 
     def __nn_simple(self, layer):
-        activ = "sigmoid"  # linear relu elu sigmoid tanh softmax
+        activ = "relu"  # linear relu elu sigmoid tanh softmax
         layer = layers.Flatten()(layer)
-        layer = layers.Dense(64, activation=activ, kernel_regularizer=reg)(layer)
-        layer = layers.Dense(64, activation=activ, kernel_regularizer=reg)(layer)
+        layer = layers.Dense(len(MOVES_MAP) * 2, activation=activ, kernel_regularizer=reg)(layer)
+        layer = layers.Dense(len(MOVES_MAP), activation=activ, kernel_regularizer=reg)(layer)
         return layer
 
     def __nn_residual(self, position):
@@ -137,23 +137,28 @@ class NNChess(NN):
 
         def residual_block(x: Tensor, downsample: bool, filters: int, kernel_size: int = 3) -> Tensor:
             y = x
-            y = layers.Conv2D(kernel_size=(kernel_size, kernel_size), filters=filters, activation=activ, strides=1)(y)
+            # y = layers.Conv2D(kernel_size=(kernel_size, kernel_size), filters=filters, activation=activ, strides=1)(y)
             # y = relu_bn(y)
             # y = layers.Conv2D(kernel_size=(kernel_size, kernel_size), filters=filters, activation=activ)(y)
 
             # if downsample:
             #    x = layers.Conv2D(kernel_size=kernel_size, filters=filters, activation=activ)(x)
+            y = layers.Flatten()(y)
 
-            # y = layers.Add()([x, y])
+            y = layers.Dense(filters, activation=activ, kernel_regularizer=reg)(y)
+            y = relu_bn(y)
+            y = layers.Dense(filters, activation=activ, kernel_regularizer=reg)(y)
+
+            y = layers.Add()([y, x])
             y = relu_bn(y)
 
             return y
 
         t = position
         params = [
-            (32, 7, False),
-            # (16, 5, True),
-            # (8, 3, True),
+            (32, 7, True),
+            (16, 5, True),
+            (8, 3, True),
         ]
         for param in params:
             num_filters, ksize, downsample, = param

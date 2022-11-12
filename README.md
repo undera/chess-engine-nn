@@ -263,3 +263,4 @@ Checked again all my code for some huge stupid misuse of NN - it all looks corre
 Observations:
 - for body activation relu is good and linear is even better 
 - rmsprop optimizer does not work for dense net
+- judging by decrease in number of invalid moves offered by NN, training of convolutional variant helps

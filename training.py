@@ -67,6 +67,7 @@ class DataSet(object):
         if os.path.exists(self.fname):
             os.rename(self.fname, self.fname + ".bak")
         try:
+            logging.info("Saving dataset: %s", self.fname)
             with open(self.fname, "wb") as fhd:
                 pickle.dump(self.dataset, fhd)
         except:
@@ -112,27 +113,31 @@ def play_with_score(pwhite, pblack):
     results.load_moves()
 
     if results.dataset:
-        nn.train(results.dataset, 10)
-        nn.save()
-        return
+        pass
+        # nn.train(results.dataset, 500)
+        # nn.save()
+        # return
 
-    rnd = max([x.from_round for x in results.dataset]) if results.dataset else 0
-    while True:
-        if not ((rnd + 1) % 96) and len(results.dataset):
-            # results.dump_moves()
-            #    nn.train(results.dataset, 10)
-            #    nn.save("nn.hdf5")
-            pass
+    rnd = 0  # max([x.from_round for x in results.dataset]) if results.dataset else 0
+    try:
+        while True:
+            if not ((rnd + 1) % 96) and len(results.dataset):
+                # results.dump_moves()
+                #    nn.train(results.dataset, 10)
+                #    nn.save("nn.hdf5")
+                pass
 
-        if _iteration(pblack, pwhite, results, rnd) != 0:
-            # results.dump_moves()
-            pass
+            if _iteration(pblack, pwhite, results, rnd) != 0:
+                # results.dump_moves()
+                pass
 
-        # nn.train(wmoves + bmoves, 1)  # shake it a bit
+            # nn.train(wmoves + bmoves, 1)  # shake it a bit
 
-        rnd += 1
-        if rnd > 960:
-            break
+            rnd += 1
+            if rnd > 960:
+                break
+    finally:
+        results.dump_moves()
 
 
 def _iteration(pblack, pwhite, results, rnd) -> int:
@@ -196,14 +201,11 @@ if __name__ == "__main__":
     _LOG_FORMAT = '[%(relativeCreated)d %(name)s %(levelname)s] %(message)s'
     logging.basicConfig(level=logging.DEBUG if is_debug() else logging.INFO, format=_LOG_FORMAT)
 
-    # if os.path.exists("nn.hdf5"):
-    #    os.remove("nn.hdf5")
-
     nn = NNChess(os.path.join(os.path.dirname(__file__), "models"))
     white = NNPLayer("Lisa", WHITE, nn)
-    black = NNPLayer("Karen", BLACK, nn)
-    # black = Stockfish(BLACK)
     # white = Stockfish(BLACK)
+    # black = NNPLayer("Karen", BLACK, nn)
+    black = Stockfish(BLACK)
 
     try:
         play_with_score(white, black)

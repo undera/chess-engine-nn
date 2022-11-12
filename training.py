@@ -3,7 +3,7 @@ import os
 import pickle
 import random
 import sys
-from typing import List, Any
+from typing import List
 
 from chess import WHITE, BLACK, Move
 
@@ -33,7 +33,7 @@ def play_one_game(pwhite, pblack, rnd):
 
             if is_debug():
                 board.write_pgn(pwhite, pblack, os.path.join(os.path.dirname(__file__), "last.pgn"), rnd)
-    except:
+    except BaseException:
         last = board.move_stack[-1] if board.move_stack else Move.null()
         logging.warning("Final move: %s %s %s", last, last.from_square, last.to_square)
         logging.warning("Final position:\n%s", board.unicode())
@@ -44,8 +44,13 @@ def play_one_game(pwhite, pblack, rnd):
 
     result = board.result(claim_draw=True)
 
-    logging.info("Game #%d/%d:\t%s by %s,\t%d moves", rnd, rnd % 960, result, board.explain(),
-                 board.fullmove_number)
+    avg_invalid = 0
+    if isinstance(pwhite, NNPLayer):
+        avg_invalid = pwhite.illegal_cnt / board.fullmove_number / 2.0
+        pwhite.illegal_cnt = 0
+
+    logging.info("Game #%d/%d:\t%s by %s,\t%d moves, invalid: %.1f", rnd, rnd % 960, result, board.explain(),
+                 board.fullmove_number, avg_invalid)
 
     return result
 
@@ -106,51 +111,67 @@ def play_with_score(pwhite, pblack):
     results = DataSet("results.pkl")
     results.load_moves()
 
-    # if results.dataset:
-    #    nn.train(results.dataset, 20)
+    if results.dataset:
+        nn.train(results.dataset, 10)
+        nn.save()
+        return
 
     rnd = max([x.from_round for x in results.dataset]) if results.dataset else 0
     while True:
-        if not ((rnd + 1) % 96):
-            results.dump_moves()
-            nn.train(results.dataset, 10)
-            nn.save("nn.hdf5")
+        if not ((rnd + 1) % 96) and len(results.dataset):
+            # results.dump_moves()
+            #    nn.train(results.dataset, 10)
+            #    nn.save("nn.hdf5")
+            pass
 
-        result = play_one_game(pwhite, pblack, rnd)
-        wmoves = pwhite.get_moves(rnd)
-        bmoves = pblack.get_moves(rnd)
+        if _iteration(pblack, pwhite, results, rnd) != 0:
+            # results.dump_moves()
+            pass
 
-        if result == '1-0':
-            for x, move in enumerate(wmoves):
-                move.eval = 0.5 + 0.5 * x / len(wmoves)
-                move.from_round = rnd
-            for x, move in enumerate(bmoves):
-                move.eval = 0.5 - 0.5 * x / len(bmoves)
-                move.from_round = rnd
-
-            results.update(wmoves)
-            results.update(bmoves)
-        elif result == '0-1':
-            for x, move in enumerate(wmoves):
-                move.eval = 0.5 - 0.5 * x / len(wmoves)
-                move.from_round = rnd
-            for x, move in enumerate(bmoves):
-                move.eval = 0.5 + 0.5 * x / len(bmoves)
-                move.from_round = rnd
-
-            results.update(wmoves)
-            results.update(bmoves)
-        else:
-            for x, move in enumerate(wmoves):
-                move.eval = 0.5 - 0.25 * x / len(wmoves)
-                move.from_round = rnd
-            for x, move in enumerate(bmoves):
-                move.eval = 0.5 - 0.25 * x / len(bmoves)
-                move.from_round = rnd
-
-        nn.train(wmoves + bmoves, 1)
+        # nn.train(wmoves + bmoves, 1)  # shake it a bit
 
         rnd += 1
+        if rnd > 960:
+            break
+
+
+def _iteration(pblack, pwhite, results, rnd) -> int:
+    result = play_one_game(pwhite, pblack, rnd)
+    wmoves = pwhite.get_moves(rnd)
+    bmoves = pblack.get_moves(rnd)
+
+    if result == '1-0':
+        for x, move in enumerate(wmoves):
+            move.eval = 1  # 0.5 + 0.5 * x / len(wmoves)
+            move.from_round = rnd
+        for x, move in enumerate(bmoves):
+            move.eval = 0  # 0.5 - 0.5 * x / len(bmoves)
+            move.from_round = rnd
+
+        results.update(wmoves)
+        # results.update(bmoves)
+
+        return 1
+    elif result == '0-1':
+        for x, move in enumerate(wmoves):
+            move.eval = 0.5 - 0.5 * x / len(wmoves)
+            move.from_round = rnd
+        for x, move in enumerate(bmoves):
+            move.eval = 1  # 0.5 + 0.5 * x / len(bmoves)
+            move.from_round = rnd
+
+        # results.update(wmoves)
+        results.update(bmoves)
+        return -1
+    else:
+        for x, move in enumerate(wmoves):
+            move.eval = 0.5 - 0.25 * x / len(wmoves)
+            move.from_round = rnd
+        for x, move in enumerate(bmoves):
+            move.eval = 0.5 - 0.25 * x / len(bmoves)
+            move.from_round = rnd
+
+        return 0
 
 
 def _retrain(winning, losing, draw):
@@ -162,7 +183,7 @@ def _retrain(winning, losing, draw):
     random.shuffle(lst)
     if lst:
         nn.train(lst, 20)
-        nn.save("nn.hdf5")
+        # nn.save("nn.hdf5")
         # raise ValueError()
 
     # winning.dataset.clear()
@@ -178,10 +199,11 @@ if __name__ == "__main__":
     # if os.path.exists("nn.hdf5"):
     #    os.remove("nn.hdf5")
 
-    nn = NNChess("nn.hdf5")
+    nn = NNChess(os.path.join(os.path.dirname(__file__), "models"))
     white = NNPLayer("Lisa", WHITE, nn)
     black = NNPLayer("Karen", BLACK, nn)
     # black = Stockfish(BLACK)
+    # white = Stockfish(BLACK)
 
     try:
         play_with_score(white, black)

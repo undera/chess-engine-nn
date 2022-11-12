@@ -4,6 +4,7 @@ from abc import abstractmethod
 from typing import List
 
 import chess
+import numpy
 import numpy as np
 from chess.engine import SimpleEngine, INFO_SCORE
 
@@ -23,6 +24,10 @@ class PlayerBase(object):
         self.moves_log = []
 
     def get_moves(self, in_round):
+        """
+        :param in_round: Round to record
+        :return: log of data records, all flipped for white side
+        """
         res = []
         for x in self.moves_log:
             x.in_round = in_round
@@ -88,6 +93,8 @@ class PlayerBase(object):
         if moverec.from_square != moverec.to_square:
             self.moves_log.append(moverec)
             self.board.comment_stack.append(moverec)
+        else:
+            logging.debug("Strange move: %s", moverec.get_move())
 
     def _mirror_move(self, move):
         """
@@ -127,6 +134,7 @@ class NNPLayer(PlayerBase):
     def __init__(self, name, color, net) -> None:
         super().__init__(name, color)
         self.nn = net
+        self.illegal_cnt = 0
 
     def _choose_best_move(self):
         if self.color == chess.WHITE:
@@ -136,24 +144,27 @@ class NNPLayer(PlayerBase):
 
         pos = board.get_position()
 
-        moves = []
-        for move in board.generate_legal_moves():
-            if not board.is_legal(move):
-                logging.debug("Illegal: %s", move)
-                continue
+        moverec = MoveRecord(pos, chess.Move.null(), None, board.fullmove_number, board.halfmove_clock)
+        mmap = self.nn.inference([moverec])
 
-            moverec = MoveRecord(pos, move, None, board.fullmove_number, board.halfmove_clock)
+        while True:
+            maxval = numpy.argmax(mmap)
+            moverec.from_square, moverec.to_square = MOVES_MAP[maxval]
+            moverec.eval = mmap[maxval]
+            if board.is_legal(moverec.get_move()):
+                break
 
-            moverec.eval, = self.nn.inference([moverec])
-            moves.append((moverec.eval, move))
+            mmap[maxval] = 0 if mmap[maxval] != 0 else mmap[maxval] - 0.1
+            self.illegal_cnt += 1
 
-        random.shuffle(moves)
-        moves.sort(key=lambda x: x[0])
-        geval, move = moves[-1]
+        if moverec.eval == 0:
+            logging.warning("Zero eval move chosen: %s", moverec.get_move())
+
+        move = moverec.get_move()
         if self.color == chess.BLACK:
             move = self._mirror_move(move)
 
-        return move, geval
+        return move, moverec.eval
 
 
 class Stockfish(PlayerBase):

@@ -1,5 +1,7 @@
+import hashlib
 import logging
 import os
+import tempfile
 import time
 from abc import abstractmethod
 from operator import itemgetter
@@ -10,11 +12,13 @@ import tensorflow
 from chess import PIECE_TYPES
 from keras import models, callbacks, layers, regularizers
 from keras.utils.vis_utils import plot_model
+from tensorflow import Tensor
 
 from chessnn import MoveRecord, MOVES_MAP
 
 tensorflow.compat.v1.disable_eager_execution()
 assert regularizers
+
 
 # os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 
@@ -22,33 +26,42 @@ assert regularizers
 class NN(object):
     _model: models.Model
 
-    def __init__(self, filename=None) -> None:
+    def __init__(self, path=tempfile.gettempdir()) -> None:
         super().__init__()
-        self.loaded = False
         self._train_acc_threshold = 0.9
         self._validate_acc_threshold = 0.9
-        if filename and os.path.exists(filename):
-            logging.info("Loading model from: %s", filename)
-            self._model = models.load_model(filename)
-            self.loaded = True
-        else:
-            logging.info("Starting with clean model")
-            self._model = self._get_nn()
-            self._model.summary(print_fn=logging.info)
-            plot_model(self._model, to_file=os.path.join(os.path.dirname(__file__), '..', 'model.png'),
-                       show_shapes=True)
 
-    def save(self, filename):
+        self._model = self._get_nn()
+        js = self._model.to_json(indent=True)
+        cs = hashlib.md5(js.encode()).hexdigest()
+        self._store_prefix = os.path.join(path, str(cs))
+
+        fname = self._store_prefix + ".hdf5"
+        if os.path.exists(fname):
+            logging.info("Loading model from: %s", fname)
+            self._model = models.load_model(fname)
+        else:
+            logging.info("Starting with clean model: %s", fname)
+            with open(self._store_prefix + ".json", 'w') as fp:
+                fp.write(js)
+
+            with open(self._store_prefix + ".txt", 'w') as fp:
+                self._model.summary(print_fn=lambda x: fp.write(x+"\n"))
+
+            plot_model(self._model, to_file=self._store_prefix + ".png", show_shapes=True)
+
+    def save(self):
+        filename = self._store_prefix + ".hdf5"
         logging.info("Saving model to: %s", filename)
         self._model.save(filename, overwrite=True)
 
     def inference(self, data):
         inputs, outputs = self._data_to_training_set(data, True)
         res = self._model.predict_on_batch(inputs)
-        return [x[0] for x in res]
+        out = [x for x in res[0]]
+        return out
 
     def train(self, data, epochs, validation_data=None):
-        self.loaded = True
         logging.info("Preparing training set of %s...", len(data))
         inputs, outputs = self._data_to_training_set(data, False)
 
@@ -83,8 +96,7 @@ class NN(object):
         pass
 
 
-reg = regularizers.l2(0.001)
-activ_hidden = "sigmoid"  # linear relu elu sigmoid tanh softmax
+reg = regularizers.l2(0.01)
 optimizer = "adam"  # sgd rmsprop adagrad adadelta adamax adam nadam
 
 
@@ -92,73 +104,91 @@ class NNChess(NN):
     def _get_nn(self):
         pos_shape = (8, 8, len(PIECE_TYPES) * 2)
         position = layers.Input(shape=pos_shape, name="position")
-        # pos_analyzed1 = self.__nn_simple(position)
-        pos_analyzed2 = self.__nn_conv(position)
-        pos_analyzed3 = self.__nn_residual(position)
+        pos_analyzed = position
+        pos_analyzed = self.__nn_conv(position)
+        # pos_analyzed = self.__nn_residual(pos_analyzed)
+        # pos_analyzed = self.__nn_simple(pos_analyzed)
 
-        pos_analyzed = layers.concatenate([pos_analyzed2, pos_analyzed3])
-        pos_analyzed = layers.Dense(64, activation=activ_hidden, kernel_regularizer=reg)(pos_analyzed)
+        # pos_analyzed = layers.concatenate([pos_analyzed2, pos_analyzed3])
+        # pos_analyzed = layers.Dense(64, activation=activ_hidden, kernel_regularizer=reg)(pos_analyzed)
 
-        out_eval = layers.Dense(1, activation="sigmoid", name="eval")(pos_analyzed)
+        out_moves = layers.Dense(len(MOVES_MAP), activation="softmax", name="eval")(pos_analyzed)
 
-        model = models.Model(inputs=[position],
-                             outputs=[out_eval])
+        model = models.Model(inputs=[position], outputs=[out_moves])
         model.compile(optimizer=optimizer,
-                      loss="mse",
-                      metrics=[])
+                      loss="categorical_crossentropy",
+                      metrics=["accuracy"])
         return model
 
-    def __nn_simple(self, position):
-        flat = layers.Flatten()(position)
-        main1 = layers.Dense(128, activation=activ_hidden, kernel_regularizer=reg)(flat)
-        conc1 = layers.concatenate([flat, main1])
-        main2 = layers.Dense(64, activation=activ_hidden, kernel_regularizer=reg)(conc1)
-        conc2 = layers.concatenate([flat, main2])
-        main3 = layers.Dense(128, activation=activ_hidden, kernel_regularizer=reg)(conc2)
-        return main3
+    def __nn_simple(self, layer):
+        activ = "sigmoid"  # linear relu elu sigmoid tanh softmax
+        layer = layers.Flatten()(layer)
+        layer = layers.Dense(64, activation=activ, kernel_regularizer=reg)(layer)
+        layer = layers.Dense(64, activation=activ, kernel_regularizer=reg)(layer)
+        return layer
 
     def __nn_residual(self, position):
-        # flags = layers.Input(shape=(1,), name="flags")
-        main = layers.Flatten()(position)
+        def relu_bn(inputs: Tensor) -> Tensor:
+            bn = layers.BatchNormalization()(inputs)
+            relu = layers.ReLU()(bn)
+            return relu
 
-        def _residual(inp, size):
-            # out = layers.Dropout(rate=0.05)(inp)
-            inp = layers.Dense(size, activation=activ_hidden, kernel_regularizer=reg)(inp)
-            out = layers.Dense(size, activation=activ_hidden, kernel_regularizer=reg)(inp)
-            out = layers.merge.multiply([inp, out])
-            # out = layers.Dense(size, activation=activ_hidden, kernel_regularizer=reg)(out)
-            return out
+        activ = "relu"  # linear relu elu sigmoid tanh softmax
 
-        branch = main
-        for _ in range(1, 4):
-            branch = _residual(branch, 8 * 8 * _)
+        def residual_block(x: Tensor, downsample: bool, filters: int, kernel_size: int = 3) -> Tensor:
+            y = x
+            y = layers.Conv2D(kernel_size=(kernel_size, kernel_size), filters=filters, activation=activ, strides=1)(y)
+            # y = relu_bn(y)
+            # y = layers.Conv2D(kernel_size=(kernel_size, kernel_size), filters=filters, activation=activ)(y)
 
-        return branch
+            # if downsample:
+            #    x = layers.Conv2D(kernel_size=kernel_size, filters=filters, activation=activ)(x)
+
+            # y = layers.Add()([x, y])
+            y = relu_bn(y)
+
+            return y
+
+        t = position
+        params = [
+            (32, 7, False),
+            # (16, 5, True),
+            # (8, 3, True),
+        ]
+        for param in params:
+            num_filters, ksize, downsample, = param
+            t = residual_block(t, downsample=downsample, filters=num_filters, kernel_size=ksize)
+
+        # t = layers.AveragePooling2D(4)(t)
+        t = layers.Flatten()(t)
+
+        return t
 
     def __nn_conv(self, position):
-        conv31 = layers.Conv2D(8, kernel_size=(3, 3), activation="relu", kernel_regularizer=reg)(position)
-        conv32 = layers.Conv2D(16, kernel_size=(3, 3), activation="relu", kernel_regularizer=reg)(conv31)
-        conv33 = layers.Conv2D(32, kernel_size=(3, 3), activation="relu", kernel_regularizer=reg)(conv32)
+        activ = "relu"
+        conv31 = layers.Conv2D(8, kernel_size=(3, 3), activation=activ, kernel_regularizer=reg)(position)
+        conv32 = layers.Conv2D(16, kernel_size=(3, 3), activation=activ, kernel_regularizer=reg)(conv31)
+        conv33 = layers.Conv2D(32, kernel_size=(3, 3), activation=activ, kernel_regularizer=reg)(conv32)
         flat3 = layers.Flatten()(conv33)
 
-        conv41 = layers.Conv2D(8, kernel_size=(4, 4), activation="relu", kernel_regularizer=reg)(position)
-        conv42 = layers.Conv2D(16, kernel_size=(4, 4), activation="relu", kernel_regularizer=reg)(conv41)
+        conv41 = layers.Conv2D(8, kernel_size=(4, 4), activation=activ, kernel_regularizer=reg)(position)
+        conv42 = layers.Conv2D(16, kernel_size=(4, 4), activation=activ, kernel_regularizer=reg)(conv41)
         flat4 = layers.Flatten()(conv42)
 
-        conv51 = layers.Conv2D(8, kernel_size=(5, 5), activation="relu", kernel_regularizer=reg)(position)
-        conv52 = layers.Conv2D(16, kernel_size=(3, 3), activation="relu", kernel_regularizer=reg)(conv51)
+        conv51 = layers.Conv2D(8, kernel_size=(5, 5), activation=activ, kernel_regularizer=reg)(position)
+        conv52 = layers.Conv2D(16, kernel_size=(3, 3), activation=activ, kernel_regularizer=reg)(conv51)
         flat5 = layers.Flatten()(conv52)
 
-        conv61 = layers.Conv2D(8, kernel_size=(6, 6), activation="relu", kernel_regularizer=reg)(position)
-        # conv62 = layers.Conv2D(16, kernel_size=(3, 3), activation="relu", kernel_regularizer=reg)(conv61)
+        conv61 = layers.Conv2D(8, kernel_size=(6, 6), activation=activ, kernel_regularizer=reg)(position)
+        # conv62 = layers.Conv2D(16, kernel_size=(3, 3), activation=activ, kernel_regularizer=reg)(conv61)
         flat6 = layers.Flatten()(conv61)
 
-        conv71 = layers.Conv2D(8, kernel_size=(7, 7), activation="relu", kernel_regularizer=reg)(position)
-        # conv72 = layers.Conv2D(16, kernel_size=(3, 3), activation="relu", kernel_regularizer=reg)(conv71)
+        conv71 = layers.Conv2D(8, kernel_size=(7, 7), activation=activ, kernel_regularizer=reg)(position)
+        # conv72 = layers.Conv2D(16, kernel_size=(3, 3), activation=activ, kernel_regularizer=reg)(conv71)
         flat7 = layers.Flatten()(conv71)
 
-        conv81 = layers.Conv2D(8, kernel_size=(8, 8), activation="relu", kernel_regularizer=reg)(position)
-        # conv72 = layers.Conv2D(16, kernel_size=(3, 3), activation="relu", kernel_regularizer=reg)(conv71)
+        conv81 = layers.Conv2D(8, kernel_size=(8, 8), activation=activ, kernel_regularizer=reg)(position)
+        # conv72 = layers.Conv2D(16, kernel_size=(3, 3), activation=activ, kernel_regularizer=reg)(conv71)
         flat8 = layers.Flatten()(conv81)
 
         conc = layers.concatenate([flat3, flat4, flat5, flat6, flat7, flat8])
@@ -168,24 +198,21 @@ class NNChess(NN):
         batch_len = len(data)
 
         inputs_pos = np.full((batch_len, 8, 8, len(PIECE_TYPES) * 2), 0.0)
-        out_evals = np.full((batch_len, 1), 0.0)
+        out_evals = np.full((batch_len, len(MOVES_MAP)), 0.0)
 
         batch_n = 0
         for moverec in data:
             assert isinstance(moverec, MoveRecord)
 
-            evl = moverec.eval
-
-            out_evals[batch_n][0] = evl
             inputs_pos[batch_n] = moverec.position
+
+            move = (moverec.from_square, moverec.to_square)
+            if move != (0, 0):
+                out_evals[batch_n][MOVES_MAP.index(move)] = moverec.eval
 
             batch_n += 1
 
         return [inputs_pos], [out_evals]
-
-    def inference(self, data):
-        inference = super().inference(data)
-        return inference
 
     def _moves_iter(self, scores):
         for idx, score in sorted(np.ndenumerate(scores), key=itemgetter(1), reverse=True):

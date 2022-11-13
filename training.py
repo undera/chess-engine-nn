@@ -19,7 +19,7 @@ def play_one_game(pwhite, pblack, rnd):
     :type pblack: NNPLayer
     :type rnd: int
     """
-    board: BoardOptim = BoardOptim.from_chess960_pos(rnd % 960)
+    board: BoardOptim = BoardOptim.from_chess960_pos(random.randint(0, 959))
     pwhite.board = board
     pblack.board = board
 
@@ -46,10 +46,10 @@ def play_one_game(pwhite, pblack, rnd):
 
     avg_invalid = 0
     if isinstance(pwhite, NNPLayer):
-        avg_invalid = pwhite.illegal_cnt / board.fullmove_number / 2.0
-        pwhite.illegal_cnt = 0
+        avg_invalid = pwhite.legal_cnt / board.fullmove_number
+        pwhite.legal_cnt = 0
 
-    logging.info("Game #%d/%d:\t%s by %s,\t%d moves, invalid: %.1f", rnd, rnd % 960, result, board.explain(),
+    logging.info("Game #%d/%d:\t%s by %s,\t%d moves, legal: %.1f", rnd, rnd % 960, result, board.explain(),
                  board.fullmove_number, avg_invalid)
 
     return result
@@ -123,21 +123,20 @@ def play_with_score(pwhite, pblack):
         while True:
             if not ((rnd + 1) % 96) and len(results.dataset):
                 # results.dump_moves()
-                #    nn.train(results.dataset, 10)
-                #    nn.save("nn.hdf5")
+                nn.train(results.dataset, 10)
+                nn.save()
                 pass
 
             if _iteration(pblack, pwhite, results, rnd) != 0:
                 # results.dump_moves()
+                nn.train(results.dataset, 1)
+                nn.save()
                 pass
 
-            # nn.train(wmoves + bmoves, 1)  # shake it a bit
-
             rnd += 1
-            if rnd > 960:
-                break
     finally:
         results.dump_moves()
+        nn.save()
 
 
 def _iteration(pblack, pwhite, results, rnd) -> int:
@@ -176,6 +175,7 @@ def _iteration(pblack, pwhite, results, rnd) -> int:
             move.eval = 0.5 - 0.25 * x / len(bmoves)
             move.from_round = rnd
 
+        # nn.train(wmoves + bmoves, 1)  # shake it a bit
         return 0
 
 
@@ -204,7 +204,7 @@ if __name__ == "__main__":
     nn = NNChess(os.path.join(os.path.dirname(__file__), "models"))
     white = NNPLayer("Lisa", WHITE, nn)
     # white = Stockfish(BLACK)
-    # black = NNPLayer("Karen", BLACK, nn)
+    black = NNPLayer("Karen", BLACK, nn)
     black = Stockfish(BLACK)
 
     try:

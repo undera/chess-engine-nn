@@ -69,7 +69,7 @@ class NN(object):
         cbpath = '/tmp/tensorboard/%d' % (time.time() if epochs > 1 else 0)
         cbs = [callbacks.TensorBoard(cbpath, write_graph=False, profile_batch=0)]
         res = self._model.fit(inputs, outputs,  # sample_weight=np.array(sample_weights),
-                              validation_split=0.1 if (validation_data is None and epochs > 1) else 0.0, shuffle=True,
+                              validation_split=0.1 if (validation_data is None and epochs >= 1) else 0.0, shuffle=True,
                               callbacks=cbs, verbose=2 if epochs > 1 else 0,
                               epochs=epochs)
         logging.info("Trained: %s", {x: y[-1] for x, y in res.history.items()})
@@ -105,8 +105,8 @@ class NNChess(NN):
         pos_shape = (8, 8, len(PIECE_TYPES) * 2)
         position = layers.Input(shape=pos_shape, name="position")
         pos_analyzed = position
-        pos_analyzed = self.__nn_conv(pos_analyzed)
-        # pos_analyzed = self.__nn_residual(pos_analyzed)
+        # pos_analyzed = self.__nn_conv(pos_analyzed)
+        pos_analyzed = self.__nn_residual(pos_analyzed)
         # pos_analyzed = self.__nn_simple(pos_analyzed)
 
         # pos_analyzed = layers.concatenate([pos_analyzed2, pos_analyzed3])
@@ -135,30 +135,34 @@ class NNChess(NN):
 
         activ = "relu"  # linear relu elu sigmoid tanh softmax
 
-        def residual_block(x: Tensor, downsample: bool, filters: int, kernel_size: int = 3) -> Tensor:
+        def residual_block(x: Tensor, downsample: int, filters: int, kernel_size: int) -> Tensor:
+            # x = layers.Flatten()(x)
+
             y = x
-            # y = layers.Conv2D(kernel_size=(kernel_size, kernel_size), filters=filters, activation=activ, strides=1)(y)
+            y = layers.Conv2D(kernel_size=(kernel_size, kernel_size), filters=filters, padding="same")(y)
             # y = relu_bn(y)
             # y = layers.Conv2D(kernel_size=(kernel_size, kernel_size), filters=filters, activation=activ)(y)
 
             # if downsample:
             #    x = layers.Conv2D(kernel_size=kernel_size, filters=filters, activation=activ)(x)
-            y = layers.Flatten()(y)
 
-            y = layers.Dense(filters, activation=activ, kernel_regularizer=reg)(y)
-            y = relu_bn(y)
-            y = layers.Dense(filters, activation=activ, kernel_regularizer=reg)(y)
+            # y = layers.Dense(x.shape[1], activation=activ, kernel_regularizer=reg)(y)
+            # y = relu_bn(y)
+            # y = layers.Dense(x.shape[1], activation=activ, kernel_regularizer=reg)(y)
 
             y = layers.Add()([y, x])
+            y = relu_bn(y)
+
+            y = layers.Conv2D(kernel_size=(kernel_size, kernel_size), filters=downsample, padding="same")(y)
             y = relu_bn(y)
 
             return y
 
         t = position
         params = [
-            (32, 7, True),
-            (16, 5, True),
-            (8, 3, True),
+            (12, 7, 16),
+            (16, 5, 24),
+            (24, 3, 32),
         ]
         for param in params:
             num_filters, ksize, downsample, = param

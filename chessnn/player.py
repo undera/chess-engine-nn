@@ -134,7 +134,7 @@ class NNPLayer(PlayerBase):
     def __init__(self, name, color, net) -> None:
         super().__init__(name, color)
         self.nn = net
-        self.illegal_cnt = 0
+        self.legal_cnt = 0
 
     def _choose_best_move(self):
         if self.color == chess.WHITE:
@@ -147,15 +147,24 @@ class NNPLayer(PlayerBase):
         moverec = MoveRecord(pos, chess.Move.null(), None, board.fullmove_number, board.halfmove_clock)
         mmap = self.nn.inference([moverec])
 
-        while True:
+        first_legal = 1
+        while numpy.sum(mmap) > 0:
             maxval = numpy.argmax(mmap)
             moverec.from_square, moverec.to_square = MOVES_MAP[maxval]
             moverec.eval = mmap[maxval]
             if board.is_legal(moverec.get_move()):
                 break
 
-            mmap[maxval] = 0 if mmap[maxval] != 0 else mmap[maxval] - 0.1
-            self.illegal_cnt += 1
+            first_legal = 0
+            mmap[maxval] = 0
+        else:
+            logging.warning("Did not find good move")
+            legal = list(board.generate_legal_moves())
+            move = random.choice(legal)
+            moverec.from_square, moverec.to_square = move.from_square, move.to_square
+            moverec.eval = 0.5
+
+        self.legal_cnt += first_legal
 
         if moverec.eval == 0:
             logging.warning("Zero eval move chosen: %s", moverec.get_move())

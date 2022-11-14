@@ -5,6 +5,7 @@ import random
 import sys
 from typing import List
 
+import tensorflow
 from chess import WHITE, BLACK, Move
 
 from chessnn import BoardOptim, is_debug, MoveRecord
@@ -49,7 +50,7 @@ def play_one_game(pwhite, pblack, rnd):
         avg_invalid = pwhite.legal_cnt / board.fullmove_number
         pwhite.legal_cnt = 0
 
-    logging.info("Game #%d/%d:\t%s by %s,\t%d moves, legal: %.1f", rnd, rnd % 960, result, board.explain(),
+    logging.info("Game #%d/%d:\t%s by %s,\t%d moves, legal: %.2f", rnd, rnd % 960, result, board.explain(),
                  board.fullmove_number, avg_invalid)
 
     return result
@@ -114,7 +115,7 @@ def play_with_score(pwhite, pblack):
 
     if results.dataset:
         pass
-        # nn.train(results.dataset, 500)
+        # nn.train(results.dataset, 10)
         # nn.save()
         # return
 
@@ -123,14 +124,13 @@ def play_with_score(pwhite, pblack):
         while True:
             if not ((rnd + 1) % 96) and len(results.dataset):
                 # results.dump_moves()
-                nn.train(results.dataset, 10)
+                nn.train(results.dataset, 1)
                 nn.save()
                 pass
 
             if _iteration(pblack, pwhite, results, rnd) != 0:
                 # results.dump_moves()
-                nn.train(results.dataset, 1)
-                nn.save()
+                # nn.save()
                 pass
 
             rnd += 1
@@ -153,6 +153,7 @@ def _iteration(pblack, pwhite, results, rnd) -> int:
             move.from_round = rnd
 
         results.update(wmoves)
+        nn.train(wmoves, 1)
         # results.update(bmoves)
 
         return 1
@@ -166,40 +167,27 @@ def _iteration(pblack, pwhite, results, rnd) -> int:
 
         # results.update(wmoves)
         results.update(bmoves)
+        nn.train(bmoves, 1)
         return -1
     else:
         for x, move in enumerate(wmoves):
-            move.eval = 0.5 - 0.25 * x / len(wmoves)
+            move.eval = 0.25 + 0.25 * x / len(wmoves)
             move.from_round = rnd
         for x, move in enumerate(bmoves):
-            move.eval = 0.5 - 0.25 * x / len(bmoves)
+            move.eval = 0.25 + 0.25 * x / len(bmoves)
             move.from_round = rnd
 
-        # nn.train(wmoves + bmoves, 1)  # shake it a bit
+        #nn.train(wmoves + bmoves, 1)  # shake it a bit
         return 0
 
 
-def _retrain(winning, losing, draw):
-    logging.info("W: %s\tL: %s\tD: %s", len(winning.dataset), len(losing.dataset), len(draw.dataset))
-    winning.dump_moves()
-    losing.dump_moves()
-
-    lst = list(winning.dataset + losing.dataset)
-    random.shuffle(lst)
-    if lst:
-        nn.train(lst, 20)
-        # nn.save("nn.hdf5")
-        # raise ValueError()
-
-    # winning.dataset.clear()
-    # losing.dataset.clear()
-    # draw.dataset.clear()
-
-
 if __name__ == "__main__":
-    sys.setrecursionlimit(10000)
+    # sys.setrecursionlimit(10000)
     _LOG_FORMAT = '[%(relativeCreated)d %(name)s %(levelname)s] %(message)s'
     logging.basicConfig(level=logging.DEBUG if is_debug() else logging.INFO, format=_LOG_FORMAT)
+    devices = tensorflow.config.list_physical_devices('GPU')
+    logging.info("GPU: %s", devices)
+    # assert devices
 
     nn = NNChess(os.path.join(os.path.dirname(__file__), "models"))
     white = NNPLayer("Lisa", WHITE, nn)

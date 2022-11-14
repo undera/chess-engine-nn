@@ -69,7 +69,7 @@ class NN(object):
         cbpath = '/tmp/tensorboard/%d' % (time.time() if epochs > 1 else 0)
         cbs = [callbacks.TensorBoard(cbpath, write_graph=False, profile_batch=0)]
         res = self._model.fit(inputs, outputs,  # sample_weight=np.array(sample_weights),
-                              validation_split=0.1 if (validation_data is None and epochs >= 1) else 0.0, shuffle=True,
+                              validation_split=0.1 if (validation_data is None and epochs > 1) else 0.0, shuffle=True,
                               callbacks=cbs, verbose=2 if epochs > 1 else 0,
                               epochs=epochs)
         logging.info("Trained: %s", {x: y[-1] for x, y in res.history.items()})
@@ -135,7 +135,7 @@ class NNChess(NN):
 
         activ = "relu"  # linear relu elu sigmoid tanh softmax
 
-        def residual_block(x: Tensor, downsample: int, filters: int, kernel_size: int) -> Tensor:
+        def residual_block(x: Tensor, filters_out: int, filters: int, kernel_size: int) -> Tensor:
             # x = layers.Flatten()(x)
 
             y = x
@@ -153,20 +153,23 @@ class NNChess(NN):
             y = layers.Add()([y, x])
             y = relu_bn(y)
 
-            y = layers.Conv2D(kernel_size=(kernel_size, kernel_size), filters=downsample, padding="same")(y)
+            y = layers.Conv2D(kernel_size=(kernel_size, kernel_size), filters=filters_out, padding="same")(y)
             y = relu_bn(y)
 
             return y
 
         t = position
         params = [
-            (12, 7, 16),
-            (16, 5, 24),
-            (24, 3, 32),
+            (12, 3, 16),
+            (16, 4, 20),
+            (20, 5, 24),
+            (24, 6, 28),
+            (28, 7, 32),
+            #  (32, 8, 36),
         ]
         for param in params:
             num_filters, ksize, downsample, = param
-            t = residual_block(t, downsample=downsample, filters=num_filters, kernel_size=ksize)
+            t = residual_block(t, filters_out=downsample, filters=num_filters, kernel_size=ksize)
 
         # t = layers.AveragePooling2D(4)(t)
         t = layers.Flatten()(t)

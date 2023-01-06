@@ -264,3 +264,4 @@ Observations:
 - for body activation relu is good and linear is even better 
 - rmsprop optimizer does not work for dense net
 - judging by decrease in number of invalid moves offered by NN, training of convolutional variant helps
+- `sigmoid` output layer seem to produce better probability of legal moves 

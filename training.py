@@ -119,7 +119,7 @@ def play_with_score(pwhite, pblack):
         # nn.save()
         # return
 
-    rnd = 0  # max([x.from_round for x in results.dataset]) if results.dataset else 0
+    rnd = max([x.from_round for x in results.dataset]) if results.dataset else 0
     try:
         while True:
             if not ((rnd + 1) % 96) and len(results.dataset):
@@ -153,7 +153,7 @@ def _iteration(pblack, pwhite, results, rnd) -> int:
             move.from_round = rnd
 
         results.update(wmoves)
-        nn.train(wmoves, 1)
+        nn.train(wmoves+bmoves, 1)
         # results.update(bmoves)
 
         return 1
@@ -167,7 +167,7 @@ def _iteration(pblack, pwhite, results, rnd) -> int:
 
         # results.update(wmoves)
         results.update(bmoves)
-        nn.train(bmoves, 1)
+        nn.train(wmoves+bmoves, 1)
         return -1
     else:
         for x, move in enumerate(wmoves):

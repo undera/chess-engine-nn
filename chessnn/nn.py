@@ -33,7 +33,7 @@ class NN(object):
 
         self._model = self._get_nn()
         js = self._model.to_json(indent=True)
-        cs = hashlib.md5(js.encode()).hexdigest()
+        cs = hashlib.md5((js + self._model.loss).encode()).hexdigest()
         self._store_prefix = os.path.join(path, str(cs))
 
         fname = self._store_prefix + ".hdf5"
@@ -112,11 +112,11 @@ class NNChess(NN):
         # pos_analyzed = layers.concatenate([pos_analyzed2, pos_analyzed3])
         # pos_analyzed = layers.Dense(64, activation=activ_hidden, kernel_regularizer=reg)(pos_analyzed)
 
-        out_moves = layers.Dense(len(MOVES_MAP), activation="softmax", name="eval")(pos_analyzed)
+        out_moves = layers.Dense(len(MOVES_MAP), activation="sigmoid", name="eval")(pos_analyzed)
 
         model = models.Model(inputs=[position], outputs=[out_moves])
         model.compile(optimizer=optimizer,
-                      loss="categorical_crossentropy",
+                      loss="mse",
                       metrics=["accuracy"])
         return model
 
